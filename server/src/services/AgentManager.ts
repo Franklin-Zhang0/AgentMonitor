@@ -65,7 +65,7 @@ export class AgentManager extends EventEmitter {
     return agent;
   }
 
-  private startProcess(agent: Agent): void {
+  private startProcess(agent: Agent, promptOverride?: string): void {
     const proc = new AgentProcess();
     this.processes.set(agent.id, proc);
 
@@ -108,7 +108,7 @@ export class AgentManager extends EventEmitter {
     proc.start({
       provider: agent.config.provider,
       directory: agent.worktreePath || agent.config.directory,
-      prompt: agent.config.prompt,
+      prompt: promptOverride ?? agent.config.prompt,
       dangerouslySkipPermissions: agent.config.flags.dangerouslySkipPermissions,
       resume: agent.config.flags.resume,
       model: agent.config.flags.model,
@@ -315,25 +315,37 @@ export class AgentManager extends EventEmitter {
   }
 
   sendMessage(agentId: string, text: string): void {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) return;
+
+    agent.messages.push({
+      id: uuid(),
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    });
+    agent.lastActivity = Date.now();
+    this.store.saveAgent(agent);
+    this.emit('agent:update', agentId, agent);
+
     const proc = this.processes.get(agentId);
-    if (proc) {
-      const agent = this.store.getAgent(agentId);
-      if (agent) {
-        agent.messages.push({
-          id: uuid(),
-          role: 'user',
-          content: text,
-          timestamp: Date.now(),
-        });
-        agent.lastActivity = Date.now();
-        this.store.saveAgent(agent);
-      }
+    if (proc && proc.isRunning) {
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
         text,
       });
+      return;
     }
+
+    // The current providers run in one-shot mode (`claude -p` / `codex exec`).
+    // For follow-up chat turns, start a new process with the latest user message.
+    this.updateAgentStatus(agentId, 'running');
+    this.startProcess(agent, text);
+    this.emit('agent:message', agentId, {
+      type: 'user',
+      text,
+    });
   }
 
   interruptAgent(agentId: string): void {

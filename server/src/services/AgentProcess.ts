@@ -66,6 +66,7 @@ export class AgentProcess extends EventEmitter {
   private buffer = '';
   private _pid: number | undefined;
   private _provider: AgentProvider = 'claude';
+  private forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
   get pid(): number | undefined {
     return this._pid;
@@ -94,6 +95,8 @@ export class AgentProcess extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: cleanEnv,
       shell: true,
+      // Run in its own process group so we can terminate shell + child reliably.
+      detached: process.platform !== 'win32',
     });
 
     this._pid = this.process.pid;
@@ -111,10 +114,25 @@ export class AgentProcess extends EventEmitter {
       this.emit('stderr', data.toString());
     });
 
-    this.process.on('close', (code) => {
+    let finalized = false;
+    const finalize = (code: number | null) => {
+      if (finalized) return;
+      finalized = true;
+      if (this.forceKillTimer) {
+        clearTimeout(this.forceKillTimer);
+        this.forceKillTimer = null;
+      }
       this.process = null;
       this._pid = undefined;
       this.emit('exit', code);
+    };
+
+    // Prefer OS process exit over stream close for deterministic shutdown.
+    this.process.on('exit', (code) => {
+      finalize(code);
+    });
+    this.process.on('close', (code) => {
+      finalize(code);
     });
 
     this.process.on('error', (err) => {
@@ -245,19 +263,34 @@ export class AgentProcess extends EventEmitter {
   }
 
   interrupt(): void {
-    if (this.process) {
-      this.process.kill('SIGINT');
-    }
+    this.killProcess('SIGINT');
   }
 
   stop(): void {
-    if (this.process) {
-      this.process.kill('SIGTERM');
-      setTimeout(() => {
-        if (this.process) {
-          this.process.kill('SIGKILL');
-        }
-      }, 5000);
+    if (!this.process) return;
+    this.killProcess('SIGTERM');
+    this.forceKillTimer = setTimeout(() => {
+      if (this.process) {
+        this.killProcess('SIGKILL');
+      }
+    }, 5000);
+    this.forceKillTimer.unref?.();
+  }
+
+  private killProcess(signal: NodeJS.Signals): void {
+    const proc = this.process;
+    if (!proc) return;
+
+    const pid = proc.pid;
+    if (pid && process.platform !== 'win32') {
+      try {
+        // Negative PID targets the detached process group.
+        process.kill(-pid, signal);
+        return;
+      } catch {
+        // Fall through to direct child kill.
+      }
     }
+    proc.kill(signal);
   }
 }
