@@ -145,6 +145,13 @@ export class AgentManager extends EventEmitter {
   }
 
   private handleClaudeMessage(agent: Agent, msg: StreamMessage): void {
+    // Claude may emit session id on init/result events at different JSON locations.
+    const sessionId = msg.result?.session_id || msg.session_id;
+    if (sessionId && agent.config.flags.resume !== sessionId) {
+      agent.config.flags.resume = sessionId;
+      this.store.saveAgent(agent);
+    }
+
     // With --verbose, assistant messages have: {type: "assistant", message: {content: [{type: "text", text: "..."}]}}
     if (msg.type === 'assistant') {
       const message = msg.message as { content?: Array<{ type: string; text?: string; name?: string; input?: unknown }> } | undefined;
@@ -199,6 +206,7 @@ export class AgentManager extends EventEmitter {
       if (cost) {
         agent.costUsd = cost;
       }
+      this.store.saveAgent(agent);
       this.updateAgentStatus(agent.id, 'stopped');
 
       // Claude -p with stream-json doesn't exit after result; kill the process
@@ -214,6 +222,15 @@ export class AgentManager extends EventEmitter {
   }
 
   private handleCodexMessage(agent: Agent, msg: StreamMessage): void {
+    const codexThreadId =
+      msg.thread_id ||
+      msg.thread?.id ||
+      (msg.type === 'thread.started' ? (msg as { id?: string }).id : undefined);
+    if (codexThreadId && agent.config.flags.resume !== codexThreadId) {
+      agent.config.flags.resume = codexThreadId;
+      this.store.saveAgent(agent);
+    }
+
     // Codex JSONL events: thread.started, turn.started, item.started, item.completed, turn.completed
     if (msg.type === 'item.completed' && msg.item) {
       if (msg.item.type === 'agent_message') {

@@ -6,6 +6,8 @@ import type { AgentProvider } from '../models/Agent.js';
 export interface StreamMessage {
   type: string;
   subtype?: string;
+  // claude: top-level session id (e.g. init/result events)
+  session_id?: string;
   // claude: assistant message
   content_block_type?: string;
   text?: string;
@@ -35,6 +37,9 @@ export interface StreamMessage {
   };
   // codex: thread info
   thread_id?: string;
+  thread?: {
+    id?: string;
+  };
   // generic
   [key: string]: unknown;
 }
@@ -203,11 +208,17 @@ export class AgentProcess extends EventEmitter {
 
   private buildCodexCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
     // Shell-escape values that may contain spaces since we use shell: true
-    const args: string[] = [
-      'exec',
-      '--json',
-      shellEscape(opts.prompt),
-    ];
+    const args: string[] = ['exec'];
+
+    if (opts.resume) {
+      // Continuation mode for existing Codex thread/session.
+      args.push('resume', shellEscape(opts.resume), shellEscape(opts.prompt));
+    } else {
+      // New one-shot session.
+      args.push(shellEscape(opts.prompt));
+    }
+
+    args.push('--json');
 
     if (opts.dangerouslySkipPermissions) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -219,8 +230,11 @@ export class AgentProcess extends EventEmitter {
       args.push('--model', shellEscape(opts.model));
     }
 
-    // Codex uses --cd instead of cwd for working directory, but we also set cwd
-    args.push('--cd', shellEscape(opts.directory));
+    // `exec resume` does not accept --cd; spawn cwd handles session filtering.
+    if (!opts.resume) {
+      // Codex uses --cd instead of cwd for new sessions, but we also set cwd.
+      args.push('--cd', shellEscape(opts.directory));
+    }
     args.push('--skip-git-repo-check');
 
     return { bin: config.codexBin, args };
