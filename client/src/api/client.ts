@@ -158,6 +158,8 @@ export const api = {
   // Directories
   listDirectory: (path?: string) =>
     request<DirListing>(`/directories${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  checkClaudeMd: (path: string) =>
+    request<{ exists: boolean; content?: string }>(`/directories/claude-md?path=${encodeURIComponent(path)}`),
 
   // Pipeline Tasks
   getTasks: () => request<PipelineTask[]>('/tasks'),

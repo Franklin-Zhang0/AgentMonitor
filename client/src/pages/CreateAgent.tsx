@@ -31,6 +31,7 @@ export function CreateAgent() {
   // Directory browser
   const [dirListing, setDirListing] = useState<DirListing | null>(null);
   const [showDirBrowser, setShowDirBrowser] = useState(false);
+  const [claudeMdPrompt, setClaudeMdPrompt] = useState<{ content: string } | null>(null);
 
   // Templates and sessions
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -51,9 +52,15 @@ export function CreateAgent() {
     }
   };
 
-  const selectDir = (path: string) => {
+  const selectDir = async (path: string) => {
     setDirectory(path);
     setShowDirBrowser(false);
+    try {
+      const result = await api.checkClaudeMd(path);
+      if (result.exists && result.content) {
+        setClaudeMdPrompt({ content: result.content });
+      }
+    } catch {}
   };
 
   const handleTemplateSelect = (templateId: string) => {
@@ -173,6 +180,20 @@ export function CreateAgent() {
           <div style={{ padding: '6px 12px' }}>
             <button className="btn btn-sm" onClick={() => selectDir(dirListing.path)}>
               {t('create.selectCurrent')} {dirListing.path}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {claudeMdPrompt && (
+        <div style={{ padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>{t('create.claudeMdFound')}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm" onClick={() => { setClaudeMd(claudeMdPrompt.content); setClaudeMdPrompt(null); }}>
+              {t('create.loadExisting')}
+            </button>
+            <button className="btn btn-sm btn-outline" onClick={() => setClaudeMdPrompt(null)}>
+              {t('create.keepCustom')}
             </button>
           </div>
         </div>

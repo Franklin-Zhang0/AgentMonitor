@@ -44,12 +44,13 @@ All channels can be enabled simultaneously — configure an admin email, WhatsAp
 
 ### Template & Instruction Management
 - **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents
+- **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects existing CLAUDE.md and offers to load it
 - **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
 - **Session resume** — Pick up previous Claude Code sessions where they left off
 
 ### Internationalization
-- Full **English** and **Chinese** localization
-- One-click language toggle persisted across sessions
+- **7 languages**: English, Chinese (中文), Japanese (日本語), Korean (한국어), Spanish, French, German
+- Language selector persisted across sessions
 
 ---
 
@@ -63,8 +64,8 @@ All channels can be enabled simultaneously — configure an admin email, WhatsAp
 |--------------|-----------|
 | ![Create Agent](docs/screenshots/create-agent.png) | ![Templates](docs/screenshots/templates.png) |
 
-| Chinese Language |
-|------------------|
+| Multi-Language Support |
+|------------------------|
 | ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
 
 ---
@@ -328,7 +329,7 @@ AgentMonitor/
   client/                   # React + Vite
     src/
       pages/                # Dashboard, Chat, Pipeline, Templates
-      i18n/                 # EN / ZH localization
+      i18n/                 # 7-language localization (EN/ZH/JA/KO/ES/FR/DE)
       api/                  # REST + Socket.IO clients
 ```
 
