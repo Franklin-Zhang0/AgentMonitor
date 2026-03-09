@@ -36,6 +36,7 @@ npm run build:client
 
 echo "=== Building relay ==="
 cd "$PROJECT_ROOT/relay"
+npm install
 npx tsc
 
 echo "=== Deploying to $REMOTE:$REMOTE_DIR ==="

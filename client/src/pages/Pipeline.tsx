@@ -53,16 +53,29 @@ export function Pipeline() {
     fetchData();
 
     const socket = getSocket();
-    socket.on('task:update', () => fetchData());
-    socket.on('pipeline:complete', () => fetchData());
-    socket.on('meta:status', () => fetchData());
-    socket.on('agent:status', () => fetchData());
+    const onTaskUpdate = () => fetchData();
+    const onPipelineComplete = () => fetchData();
+    const onMetaStatus = () => fetchData();
+    const onAgentStatus = () => fetchData();
+    const onConnect = () => fetchData();
+
+    socket.on('task:update', onTaskUpdate);
+    socket.on('pipeline:complete', onPipelineComplete);
+    socket.on('meta:status', onMetaStatus);
+    socket.on('agent:status', onAgentStatus);
+    socket.on('connect', onConnect);
+
+    const pollTimer = setInterval(() => {
+      fetchData();
+    }, 5000);
 
     return () => {
-      socket.off('task:update');
-      socket.off('pipeline:complete');
-      socket.off('meta:status');
-      socket.off('agent:status');
+      clearInterval(pollTimer);
+      socket.off('task:update', onTaskUpdate);
+      socket.off('pipeline:complete', onPipelineComplete);
+      socket.off('meta:status', onMetaStatus);
+      socket.off('agent:status', onAgentStatus);
+      socket.off('connect', onConnect);
     };
   }, [fetchData]);
 

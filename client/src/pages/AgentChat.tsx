@@ -23,8 +23,12 @@ export function AgentChat() {
   const [editingClaudeMd, setEditingClaudeMd] = useState(false);
   const [claudeMdContent, setClaudeMdContent] = useState('');
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
+  const hasUpdateRef = useRef(false);
+  const shouldAutoScrollRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -76,37 +80,73 @@ export function AgentChat() {
     const socket = getSocket();
 
     // Use agent:update for real-time streaming (full agent snapshot, no HTTP needed)
-    let hasUpdate = false;
     const onUpdate = (data: { agentId: string; agent: Agent }) => {
       if (data.agentId === id && data.agent) {
-        hasUpdate = true;
+        hasUpdateRef.current = true;
         setAgent(data.agent);
       }
     };
 
     // Legacy fallback: only re-fetch if agent:update isn't available
     const onMessage = (data: { agentId: string }) => {
-      if (!hasUpdate && data.agentId === id) fetchAgent();
+      if (!hasUpdateRef.current && data.agentId === id) fetchAgent();
     };
     const onStatus = (data: { agentId: string }) => {
-      if (!hasUpdate && data.agentId === id) fetchAgent();
+      if (!hasUpdateRef.current && data.agentId === id) fetchAgent();
+    };
+    const onConnect = () => {
+      // After reconnect (common with relay), room membership/streaming may need re-sync.
+      hasUpdateRef.current = false;
+      joinAgent(id);
+      fetchAgent();
     };
 
     socket.on('agent:update', onUpdate);
     socket.on('agent:message', onMessage);
     socket.on('agent:status', onStatus);
+    socket.on('connect', onConnect);
 
     return () => {
       leaveAgent(id);
       socket.off('agent:update', onUpdate);
       socket.off('agent:message', onMessage);
       socket.off('agent:status', onStatus);
+      socket.off('connect', onConnect);
     };
   }, [id, fetchAgent]);
 
+  // Polling fallback: keeps chat fresh even if relay socket drops events.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [agent?.messages]);
+    if (!id) return;
+    const timer = setInterval(() => {
+      fetchAgent();
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [id, fetchAgent]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      shouldAutoScrollRef.current = distanceFromBottom < 80;
+    };
+
+    onScroll();
+    container.addEventListener('scroll', onScroll);
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [id]);
+
+  useEffect(() => {
+    const totalMessages = (agent?.messages.length || 0) + localMessages.length;
+    const hasNewMessages = totalMessages > prevMessageCountRef.current;
+    prevMessageCountRef.current = totalMessages;
+
+    if (hasNewMessages && shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [agent?.messages.length, localMessages.length]);
 
   // Double-Esc handler
   useEffect(() => {
@@ -496,7 +536,7 @@ export function AgentChat() {
         </div>
       </div>
 
-      <div className="chat-messages">
+      <div ref={messagesContainerRef} className="chat-messages">
         {agent.messages.map((msg) => (
           <div key={msg.id} className={`chat-message ${msg.role}`}>
             {msg.content}

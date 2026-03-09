@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Agent } from '../api/client';
 import { getSocket } from '../api/socket';
@@ -11,6 +11,7 @@ export function Dashboard() {
   const [retentionHours, setRetentionHours] = useState(24);
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const hasSnapshotRef = useRef(false);
 
   const fetchAgents = async () => {
     try {
@@ -44,10 +45,9 @@ export function Dashboard() {
     const socket = getSocket();
 
     // Real-time: use agent:snapshot to update individual cards without full re-fetch
-    let hasSnapshot = false;
     const onSnapshot = (data: { agentId: string; agent: Agent }) => {
       if (data.agent) {
-        hasSnapshot = true;
+        hasSnapshotRef.current = true;
         setAgents((prev) => {
           const idx = prev.findIndex((a) => a.id === data.agentId);
           if (idx >= 0) {
@@ -63,17 +63,26 @@ export function Dashboard() {
 
     // Fallback for status changes (e.g., stop/delete which don't emit snapshot)
     const onStatus = () => {
-      if (!hasSnapshot) fetchAgents();
-      // For 'deleted' status from cleanup, always re-fetch to remove cards
+      fetchAgents();
+    };
+    const onConnect = () => {
+      hasSnapshotRef.current = false;
       fetchAgents();
     };
 
     socket.on('agent:snapshot', onSnapshot);
     socket.on('agent:status', onStatus);
+    socket.on('connect', onConnect);
+
+    const pollTimer = setInterval(() => {
+      fetchAgents();
+    }, 5000);
 
     return () => {
+      clearInterval(pollTimer);
       socket.off('agent:snapshot', onSnapshot);
       socket.off('agent:status', onStatus);
+      socket.off('connect', onConnect);
     };
   }, []);
 
