@@ -74,7 +74,12 @@ export interface PipelineTask {
   provider?: AgentProvider;
   model?: string;
   claudeMd?: string;
-  flags?: Record<string, unknown>;
+  flags?: {
+    dangerouslySkipPermissions?: boolean;
+    fullAuto?: boolean;
+    chrome?: boolean;
+    effort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  };
   status: 'pending' | 'running' | 'completed' | 'failed';
   agentId?: string;
   order: number;
@@ -169,7 +174,7 @@ export const api = {
     provider?: AgentProvider;
     model?: string;
     claudeMd?: string;
-    flags?: Record<string, unknown>;
+    flags?: PipelineTask['flags'];
     order?: number;
   }) => request<PipelineTask>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id: string, data: Partial<PipelineTask>) =>

@@ -13,6 +13,8 @@ export interface PipelineTask {
   flags?: {
     dangerouslySkipPermissions?: boolean;
     fullAuto?: boolean;
+    chrome?: boolean;
+    effort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   };
   status: TaskStatus;
   agentId?: string;

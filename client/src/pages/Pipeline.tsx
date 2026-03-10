@@ -5,9 +5,11 @@ import { getSocket } from '../api/socket';
 import { useTranslation } from '../i18n';
 
 export function Pipeline() {
+  type EffortLevel = 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   const [tasks, setTasks] = useState<PipelineTask[]>([]);
   const [metaConfig, setMetaConfig] = useState<MetaAgentConfig | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ export function Pipeline() {
   const [newClaudeMd, setNewClaudeMd] = useState('');
   const [newSkipPerms, setNewSkipPerms] = useState(true);
   const [newChrome, setNewChrome] = useState(false);
+  const [newEffort, setNewEffort] = useState<EffortLevel>('default');
 
   // Config form
   const [cfgClaudeMd, setCfgClaudeMd] = useState('');
@@ -33,6 +36,25 @@ export function Pipeline() {
   const [cfgWhatsappPhone, setCfgWhatsappPhone] = useState('');
   const [cfgSlackWebhook, setCfgSlackWebhook] = useState('');
   const [cfgStuckTimeout, setCfgStuckTimeout] = useState(300000);
+
+  const resetTaskForm = () => {
+    setNewName('');
+    setNewPrompt('');
+    setNewDir('');
+    setNewProvider('claude');
+    setNewModel('');
+    setNewOrder('');
+    setNewClaudeMd('');
+    setNewSkipPerms(true);
+    setNewChrome(false);
+    setNewEffort('default');
+  };
+
+  const closeTaskModal = () => {
+    setShowAddTask(false);
+    setEditingTaskId(null);
+    resetTaskForm();
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -48,6 +70,13 @@ export function Pipeline() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    // Claude currently supports low/medium/high effort only.
+    if (newProvider === 'claude' && (newEffort === 'minimal' || newEffort === 'xhigh')) {
+      setNewEffort('default');
+    }
+  }, [newProvider, newEffort]);
 
   useEffect(() => {
     fetchData();
@@ -79,28 +108,51 @@ export function Pipeline() {
     };
   }, [fetchData]);
 
-  const handleAddTask = async () => {
+  const handleSaveTask = async () => {
     if (!newName.trim() || !newPrompt.trim()) return;
-    await api.createTask({
+    const payload = {
       name: newName.trim(),
       prompt: newPrompt.trim(),
       directory: newDir.trim() || undefined,
       provider: newProvider,
       model: newModel.trim() || undefined,
       claudeMd: newClaudeMd.trim() || undefined,
-      flags: { dangerouslySkipPermissions: newSkipPerms, chrome: newChrome || undefined },
+      flags: {
+        dangerouslySkipPermissions: newSkipPerms,
+        chrome: newChrome || undefined,
+        effort: newEffort !== 'default' ? newEffort : undefined,
+      },
       order: newOrder !== '' ? newOrder : undefined,
-    });
-    setShowAddTask(false);
-    setNewName('');
-    setNewPrompt('');
-    setNewDir('');
-    setNewModel('');
-    setNewOrder('');
-    setNewClaudeMd('');
-    setNewSkipPerms(true);
-    setNewChrome(false);
+    };
+
+    if (editingTaskId) {
+      await api.updateTask(editingTaskId, payload);
+    } else {
+      await api.createTask(payload);
+    }
+    closeTaskModal();
     fetchData();
+  };
+
+  const openCreateTask = () => {
+    setEditingTaskId(null);
+    resetTaskForm();
+    setShowAddTask(true);
+  };
+
+  const openEditTask = (task: PipelineTask) => {
+    setEditingTaskId(task.id);
+    setNewName(task.name);
+    setNewPrompt(task.prompt);
+    setNewDir(task.directory || '');
+    setNewProvider(task.provider || 'claude');
+    setNewModel(task.model || '');
+    setNewOrder(task.order);
+    setNewClaudeMd(task.claudeMd || '');
+    setNewSkipPerms(Boolean(task.flags?.dangerouslySkipPermissions ?? true));
+    setNewChrome(Boolean(task.flags && 'chrome' in task.flags && task.flags.chrome));
+    setNewEffort(task.flags?.effort || 'default');
+    setShowAddTask(true);
   };
 
   const handleDeleteTask = async (id: string) => {
@@ -208,7 +260,7 @@ export function Pipeline() {
           <button className="btn btn-sm btn-outline" onClick={openConfig}>
             {t('pipeline.configure')}
           </button>
-          <button className="btn btn-sm" onClick={() => setShowAddTask(true)}>
+          <button className="btn btn-sm" onClick={openCreateTask}>
             {t('pipeline.addTask')}
           </button>
           {tasks.some(tsk => tsk.status === 'completed' || tsk.status === 'failed') && (
@@ -280,6 +332,11 @@ export function Pipeline() {
                         )}
                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                           {task.status === 'pending' && (
+                            <button className="btn btn-sm btn-outline" onClick={() => openEditTask(task)}>
+                              {t('common.edit')}
+                            </button>
+                          )}
+                          {task.status === 'pending' && (
                             <button className="btn btn-sm btn-danger" onClick={() => handleDeleteTask(task.id)}>
                               {t('common.delete')}
                             </button>
@@ -310,11 +367,13 @@ export function Pipeline() {
 
       {/* Add Task Modal */}
       {showAddTask && (
-        <div className="modal-overlay" onClick={() => setShowAddTask(false)}>
+        <div className="modal-overlay" onClick={closeTaskModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">{t('pipeline.addTaskTitle')}</span>
-              <button className="btn btn-sm btn-outline" onClick={() => setShowAddTask(false)}>
+              <span className="modal-title">
+                {editingTaskId ? `${t('common.edit')} ${t('pipeline.taskName')}` : t('pipeline.addTaskTitle')}
+              </span>
+              <button className="btn btn-sm btn-outline" onClick={closeTaskModal}>
                 {t('common.cancel')}
               </button>
             </div>
@@ -359,6 +418,62 @@ export function Pipeline() {
               </div>
             </div>
             <div className="form-group">
+              <label>{t('create.effort')}</label>
+              <div className="provider-selector">
+                <button
+                  className={`provider-btn ${newEffort === 'default' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setNewEffort('default')}
+                >
+                  {t('create.effortAuto')}
+                </button>
+                {newProvider === 'codex' && (
+                  <button
+                    className={`provider-btn ${newEffort === 'minimal' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setNewEffort('minimal')}
+                  >
+                    {t('create.effortMinimal')}
+                  </button>
+                )}
+                <button
+                  className={`provider-btn ${newEffort === 'low' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setNewEffort('low')}
+                >
+                  {t('create.effortLow')}
+                </button>
+                <button
+                  className={`provider-btn ${newEffort === 'medium' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setNewEffort('medium')}
+                >
+                  {t('create.effortMedium')}
+                </button>
+                <button
+                  className={`provider-btn ${newEffort === 'high' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setNewEffort('high')}
+                >
+                  {t('create.effortHigh')}
+                </button>
+                {newProvider === 'codex' && (
+                  <button
+                    className={`provider-btn ${newEffort === 'xhigh' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setNewEffort('xhigh')}
+                  >
+                    {t('create.effortXhigh')}
+                  </button>
+                )}
+              </div>
+              {newProvider === 'codex' && (
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>
+                  {t('create.effortModelDependent')}
+                </div>
+              )}
+            </div>
+            <div className="form-group">
               <label>{t('pipeline.claudeMdOptional')}</label>
               <textarea
                 value={newClaudeMd}
@@ -386,8 +501,8 @@ export function Pipeline() {
               </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={handleAddTask} disabled={!newName.trim() || !newPrompt.trim()}>
-                {t('pipeline.addTaskBtn')}
+              <button className="btn" onClick={handleSaveTask} disabled={!newName.trim() || !newPrompt.trim()}>
+                {editingTaskId ? t('common.save') : t('pipeline.addTaskBtn')}
               </button>
             </div>
           </div>

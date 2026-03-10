@@ -206,18 +206,6 @@ export class MetaAgentManager extends EventEmitter {
     const completedTasks = allTasks.filter(t => t.status === 'completed');
     console.log(`[MetaAgent] All tasks done: ${completedTasks.length} completed, ${failedTasks.length} failed`);
 
-    // Auto-cleanup: delete agents (stops process + removes worktree)
-    for (const task of allTasks) {
-      if (task.agentId) {
-        try {
-          await this.agentManager.deleteAgent(task.agentId);
-          console.log(`[MetaAgent] Cleaned up agent ${task.agentId} for task "${task.name}"`);
-        } catch (err) {
-          console.warn(`[MetaAgent] Failed to cleanup agent ${task.agentId}:`, err);
-        }
-      }
-    }
-
     // Send pipeline-complete notification
     await this.notifyPipelineComplete(completedTasks.length, failedTasks.length);
 
@@ -296,6 +284,7 @@ export class MetaAgentManager extends EventEmitter {
             model: task.model,
             fullAuto: task.flags?.fullAuto,
             chrome: task.flags?.chrome,
+            effort: task.flags?.effort,
           },
         },
       );
