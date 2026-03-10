@@ -4,6 +4,7 @@ import { api, type AgentProvider, type Template, type SessionInfo, type DirListi
 import { useTranslation } from '../i18n';
 
 export function CreateAgent() {
+  type EffortLevel = 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [provider, setProvider] = useState<AgentProvider>('claude');
@@ -25,6 +26,7 @@ export function CreateAgent() {
   const [mcpConfig, setMcpConfig] = useState('');
   const [resumeSession, setResumeSession] = useState('');
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<EffortLevel>('default');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -90,6 +92,7 @@ export function CreateAgent() {
           mcpConfig: mcpConfig || undefined,
           resume: resumeSession || undefined,
           model: model || undefined,
+          effort: effort !== 'default' ? effort : undefined,
         },
       });
       navigate(`/agent/${agent.id}`);
@@ -194,6 +197,63 @@ export function CreateAgent() {
           onChange={(e) => setModel(e.target.value)}
           placeholder={provider === 'claude' ? 'e.g. claude-sonnet-4-5-20250514' : 'e.g. o3'}
         />
+      </div>
+
+      <div className="form-group">
+        <label>{t('create.effort')}</label>
+        <div className="provider-selector">
+          <button
+            className={`provider-btn ${effort === 'default' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setEffort('default')}
+          >
+            {t('create.effortAuto')}
+          </button>
+          {provider === 'codex' && (
+            <button
+              className={`provider-btn ${effort === 'minimal' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setEffort('minimal')}
+            >
+              {t('create.effortMinimal')}
+            </button>
+          )}
+          <button
+            className={`provider-btn ${effort === 'low' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setEffort('low')}
+          >
+            {t('create.effortLow')}
+          </button>
+          <button
+            className={`provider-btn ${effort === 'medium' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setEffort('medium')}
+          >
+            {t('create.effortMedium')}
+          </button>
+          <button
+            className={`provider-btn ${effort === 'high' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setEffort('high')}
+          >
+            {t('create.effortHigh')}
+          </button>
+          {provider === 'codex' && (
+            <button
+              className={`provider-btn ${effort === 'xhigh' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setEffort('xhigh')}
+            >
+              {t('create.effortXhigh')}
+            </button>
+          )}
+        </div>
+        {provider === 'codex' && (
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>
+            {t('create.effortModelDependent')}
+          </div>
+        )}
       </div>
 
       <div className="form-group">

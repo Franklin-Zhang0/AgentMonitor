@@ -112,6 +112,7 @@ export class AgentManager extends EventEmitter {
       dangerouslySkipPermissions: agent.config.flags.dangerouslySkipPermissions,
       resume: agent.config.flags.resume,
       model: agent.config.flags.model,
+      effort: agent.config.flags.effort,
       fullAuto: agent.config.flags.fullAuto,
       chrome: agent.config.flags.chrome,
       permissionMode: agent.config.flags.permissionMode,

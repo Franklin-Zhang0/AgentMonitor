@@ -20,6 +20,7 @@ export interface AgentConfig {
     dangerouslySkipPermissions?: boolean;
     resume?: string;
     model?: string;
+    effort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
     fullAuto?: boolean;
     chrome?: boolean;
     permissionMode?: string;

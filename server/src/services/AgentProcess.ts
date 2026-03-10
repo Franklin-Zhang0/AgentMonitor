@@ -51,6 +51,7 @@ export interface ProcessStartOpts {
   dangerouslySkipPermissions?: boolean;
   resume?: string;
   model?: string;
+  effort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   fullAuto?: boolean;
   chrome?: boolean;
   permissionMode?: string;
@@ -172,6 +173,10 @@ export class AgentProcess extends EventEmitter {
       args.push('--model', shellEscape(opts.model));
     }
 
+    if (opts.effort && ['low', 'medium', 'high'].includes(opts.effort)) {
+      args.push('--effort', shellEscape(opts.effort));
+    }
+
     if (opts.chrome) {
       args.push('--chrome');
     }
@@ -209,33 +214,35 @@ export class AgentProcess extends EventEmitter {
   private buildCodexCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
     // Shell-escape values that may contain spaces since we use shell: true
     const args: string[] = ['exec'];
+    const codexOptions: string[] = ['--json', '--skip-git-repo-check'];
 
-    if (opts.resume) {
-      // Continuation mode for existing Codex thread/session.
-      args.push('resume', shellEscape(opts.resume), shellEscape(opts.prompt));
-    } else {
-      // New one-shot session.
-      args.push(shellEscape(opts.prompt));
+    if (opts.effort) {
+      codexOptions.push('-c', shellEscape(`model_reasoning_effort="${opts.effort}"`));
     }
 
-    args.push('--json');
-
     if (opts.dangerouslySkipPermissions) {
-      args.push('--dangerously-bypass-approvals-and-sandbox');
+      codexOptions.push('--dangerously-bypass-approvals-and-sandbox');
     } else if (opts.fullAuto) {
-      args.push('--full-auto');
+      codexOptions.push('--full-auto');
     }
 
     if (opts.model) {
-      args.push('--model', shellEscape(opts.model));
+      codexOptions.push('--model', shellEscape(opts.model));
     }
 
     // `exec resume` does not accept --cd; spawn cwd handles session filtering.
     if (!opts.resume) {
       // Codex uses --cd instead of cwd for new sessions, but we also set cwd.
-      args.push('--cd', shellEscape(opts.directory));
+      codexOptions.push('--cd', shellEscape(opts.directory));
     }
-    args.push('--skip-git-repo-check');
+
+    if (opts.resume) {
+      // Continuation mode for existing Codex thread/session.
+      args.push('resume', ...codexOptions, shellEscape(opts.resume), shellEscape(opts.prompt));
+    } else {
+      // New one-shot session.
+      args.push(...codexOptions, shellEscape(opts.prompt));
+    }
 
     return { bin: config.codexBin, args };
   }
