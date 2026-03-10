@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Agent } from '../api/client';
 import { getSocket } from '../api/socket';
@@ -9,6 +9,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [retentionHours, setRetentionHours] = useState(24);
+  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { t } = useTranslation();
   const hasSnapshotRef = useRef(false);
@@ -115,6 +116,31 @@ export function Dashboard() {
     return text.length > 100 ? text.slice(0, 100) + '...' : text;
   };
 
+  const getLastReplyTime = (agent: Agent) => {
+    for (let i = agent.messages.length - 1; i >= 0; i -= 1) {
+      const message = agent.messages[i];
+      if (message.role === 'assistant') {
+        return message.timestamp;
+      }
+    }
+    return agent.lastActivity || agent.createdAt;
+  };
+
+  const visibleAgents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return [...agents]
+      .sort((a, b) => {
+        const timeDiff = getLastReplyTime(b) - getLastReplyTime(a);
+        if (timeDiff !== 0) return timeDiff;
+        return b.lastActivity - a.lastActivity;
+      })
+      .filter((agent) => {
+        if (!query) return true;
+        return agent.name.toLowerCase().includes(query);
+      });
+  }, [agents, searchQuery]);
+
   if (loading) return <div>{t('common.loading')}</div>;
 
   return (
@@ -136,13 +162,28 @@ export function Dashboard() {
         </div>
       </div>
 
+      <div className="dashboard-toolbar">
+        <input
+          type="search"
+          className="dashboard-search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('dashboard.searchPlaceholder')}
+          aria-label={t('dashboard.searchLabel')}
+        />
+      </div>
+
       {agents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
           {t('dashboard.empty')}
         </div>
+      ) : visibleAgents.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
+          {t('dashboard.noSearchResults')}
+        </div>
       ) : (
         <div className="card-grid">
-          {agents.map((agent) => (
+          {visibleAgents.map((agent) => (
             <div
               key={agent.id}
               className="card"

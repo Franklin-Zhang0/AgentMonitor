@@ -425,6 +425,26 @@ body {
   margin-bottom: 20px;
 }
 
+.dashboard-toolbar {
+  margin-bottom: 16px;
+}
+
+.dashboard-search {
+  width: min(420px, 100%);
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.dashboard-search:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .page-title {
   font-size: 22px;
   font-weight: 700;
@@ -623,4 +643,16 @@ body {
 
 .pipeline-task-card:hover {
   border-color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .dashboard-search {
+    width: 100%;
+  }
 }
