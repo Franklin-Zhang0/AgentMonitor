@@ -328,6 +328,22 @@ export class AgentManager extends EventEmitter {
     }
   }
 
+  private buildReplayPrompt(agent: Agent): string {
+    const transcript = agent.messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+      .join('\n\n');
+
+    return [
+      'Resume this conversation from the transcript below.',
+      `Original task: ${agent.config.prompt}`,
+      transcript ? `Conversation transcript:\n${transcript}` : '',
+      'Continue from the latest USER message. Do not restate the transcript unless needed.',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
   private updateAgentStatus(agentId: string, status: AgentStatus): void {
     const agent = this.store.getAgent(agentId);
     if (agent) {
@@ -413,7 +429,8 @@ export class AgentManager extends EventEmitter {
     // The current providers run in one-shot mode (`claude -p` / `codex exec`).
     // For follow-up chat turns, start a new process with the latest user message.
     this.updateAgentStatus(agentId, 'running');
-    this.startProcess(agent, text);
+    const nextPrompt = agent.config.flags.resume ? text : this.buildReplayPrompt(agent);
+    this.startProcess(agent, nextPrompt);
     this.emit('agent:message', agentId, {
       type: 'user',
       text,
@@ -459,6 +476,38 @@ export class AgentManager extends EventEmitter {
         await this.stopAgent(agent.id);
       }
     }
+  }
+
+  async rewindToMessage(agentId: string, messageId: string): Promise<void> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) return;
+
+    const targetIndex = agent.messages.findIndex(
+      (message) => message.id === messageId && message.role === 'user',
+    );
+    if (targetIndex === -1) {
+      throw new Error('User message not found');
+    }
+
+    const proc = this.processes.get(agentId);
+    if (proc) {
+      this.pendingRestartPrompts.delete(agentId);
+      proc.stop();
+      this.processes.delete(agentId);
+    }
+
+    // Rewind to just before the selected user turn. The selected message is
+    // restored into the chat input on the client for editing/resend.
+    agent.messages = agent.messages.slice(0, targetIndex);
+    agent.config.flags.resume = undefined;
+    agent.status = 'stopped';
+    agent.lastActivity = Date.now();
+    agent.costUsd = undefined;
+    agent.tokenUsage = undefined;
+    this.store.saveAgent(agent);
+
+    this.emit('agent:status', agentId, agent.status);
+    this.emit('agent:update', agentId, agent);
   }
 
   updateClaudeMd(agentId: string, content: string): void {

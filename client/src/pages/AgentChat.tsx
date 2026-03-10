@@ -559,6 +559,16 @@ export function AgentChat() {
     api.sendMessage(id, response);
   };
 
+  const handleRewind = async (messageId: string, messageContent: string) => {
+    if (!id) return;
+    const confirmed = window.confirm('Rewind to this message and discard everything after it?');
+    if (!confirmed) return;
+    await api.rewindAgent(id, messageId);
+    setInput(messageContent);
+    setShowSlash(false);
+    fetchAgent();
+  };
+
   const filteredCommands = slashCommands.filter((c) =>
     c.cmd.startsWith(slashFilter || '/'),
   );
@@ -633,6 +643,15 @@ export function AgentChat() {
         )}
         {agent.messages.map((msg) => (
           <div key={msg.id} className={`chat-message ${msg.role}`}>
+            {msg.role === 'user' && (
+              <button
+                className="message-action"
+                onClick={() => handleRewind(msg.id, msg.content)}
+                type="button"
+              >
+                Rewind here
+              </button>
+            )}
             {msg.content}
           </div>
         ))}

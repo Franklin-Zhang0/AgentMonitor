@@ -309,12 +309,30 @@ body {
 }
 
 .chat-message {
+  position: relative;
   padding: 8px 12px;
   margin-bottom: 8px;
   border-radius: var(--radius);
   font-size: 14px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-action {
+  float: right;
+  margin-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.message-action:hover {
+  color: var(--text);
+  border-color: var(--primary);
 }
 
 .permission-banner {

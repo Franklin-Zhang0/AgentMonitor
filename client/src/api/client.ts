@@ -146,6 +146,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  rewindAgent: (id: string, messageId: string) =>
+    request('/agents/' + id + '/rewind', {
+      method: 'POST',
+      body: JSON.stringify({ messageId }),
+    }),
   interruptAgent: (id: string) =>
     request('/agents/' + id + '/interrupt', { method: 'POST' }),
   renameAgent: (id: string, name: string) =>

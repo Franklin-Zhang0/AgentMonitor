@@ -6,6 +6,7 @@ import { AgentChat } from '../src/pages/AgentChat';
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   sendMessage: vi.fn(),
+  rewindAgent: vi.fn(),
   updateAgentPermissions: vi.fn(),
   updateClaudeMd: vi.fn(),
   stopAgent: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('../src/api/client', () => ({
   api: {
     getAgent: mocks.getAgent,
     sendMessage: mocks.sendMessage,
+    rewindAgent: mocks.rewindAgent,
     updateAgentPermissions: mocks.updateAgentPermissions,
     updateClaudeMd: mocks.updateClaudeMd,
     stopAgent: mocks.stopAgent,
@@ -105,6 +107,7 @@ describe('AgentChat permission actions', () => {
       createdAt: 100,
     });
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.rewindAgent.mockResolvedValue(undefined);
     mocks.updateAgentPermissions.mockResolvedValue(undefined);
     mocks.socket.on.mockReset();
     mocks.socket.off.mockReset();
@@ -166,6 +169,84 @@ describe('AgentChat permission actions', () => {
 
     await waitFor(() => {
       expect(mocks.updateAgentPermissions).toHaveBeenCalledWith('agent-2', 'fullAuto');
+    });
+  });
+
+  it('rewinds from a selected user message', async () => {
+    mocks.getAgent.mockResolvedValueOnce({
+      id: 'agent-3',
+      name: 'Claude Agent',
+      status: 'stopped',
+      config: {
+        provider: 'claude',
+        directory: '/tmp/project',
+        prompt: 'test',
+        flags: { permissionMode: 'default' },
+      },
+      messages: [
+        { id: 'u1', role: 'user', content: 'first prompt', timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'first answer', timestamp: 2 },
+        { id: 'u2', role: 'user', content: 'second prompt', timestamp: 3 },
+      ],
+      lastActivity: 123,
+      createdAt: 100,
+    });
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={['/agent/agent-3']}>
+        <Routes>
+          <Route path="/agent/:id" element={<AgentChat />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Rewind here').length).toBe(2);
+    });
+
+    fireEvent.click(screen.getAllByText('Rewind here')[1]);
+
+    await waitFor(() => {
+      expect(mocks.rewindAgent).toHaveBeenCalledWith('agent-3', 'u2');
+    });
+    expect(screen.getByDisplayValue('second prompt')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('shows rewind actions for earlier user turns only', async () => {
+    mocks.getAgent.mockResolvedValueOnce({
+      id: 'agent-4',
+      name: 'Claude Agent',
+      status: 'stopped',
+      config: {
+        provider: 'claude',
+        directory: '/tmp/project',
+        prompt: 'test',
+        flags: { permissionMode: 'default' },
+      },
+      messages: [
+        { id: 'u1', role: 'user', content: 'first prompt', timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'first answer', timestamp: 2 },
+        { id: 'u2', role: 'user', content: 'second prompt', timestamp: 3 },
+        { id: 'a2', role: 'assistant', content: 'second answer', timestamp: 4 },
+      ],
+      lastActivity: 123,
+      createdAt: 100,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/agent/agent-4']}>
+        <Routes>
+          <Route path="/agent/:id" element={<AgentChat />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Rewind here').length).toBe(2);
     });
   });
 });

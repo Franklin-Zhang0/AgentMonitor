@@ -110,6 +110,20 @@ export function agentRoutes(manager: AgentManager): Router {
     res.json({ ok: true });
   });
 
+  router.post('/:id/rewind', async (req, res) => {
+    const { messageId } = req.body;
+    if (!messageId || typeof messageId !== 'string') {
+      res.status(400).json({ error: 'messageId is required' });
+      return;
+    }
+    try {
+      await manager.rewindToMessage(req.params.id, messageId);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ error: String(err) });
+    }
+  });
+
   // Interrupt agent (double-Esc)
   router.post('/:id/interrupt', (req, res) => {
     manager.interruptAgent(req.params.id);
