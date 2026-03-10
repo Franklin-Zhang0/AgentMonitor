@@ -3,6 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type Template, type SessionInfo, type DirListing } from '../api/client';
 import { useTranslation } from '../i18n';
 
+function getPermissionOptions(provider: AgentProvider) {
+  if (provider === 'codex') {
+    return [
+      { value: 'default', label: 'Default' },
+      { value: 'readOnly', label: 'Read-only approvals' },
+      { value: 'workspaceWrite', label: 'Workspace-write approvals' },
+      { value: 'fullAuto', label: 'Full auto' },
+      { value: 'bypassPermissions', label: 'Bypass approvals and sandbox' },
+    ];
+  }
+
+  return [
+    { value: 'default', label: 'Default' },
+    { value: 'acceptEdits', label: 'Accept edits' },
+    { value: 'bypassPermissions', label: 'Bypass permissions' },
+    { value: 'dontAsk', label: 'Do not ask' },
+    { value: 'plan', label: 'Plan mode' },
+  ];
+}
+
 export function CreateAgent() {
   type EffortLevel = 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   const navigate = useNavigate();
@@ -15,10 +35,8 @@ export function CreateAgent() {
   const [adminEmail, setAdminEmail] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
-  const [skipPermissions, setSkipPermissions] = useState(false);
-  const [fullAuto, setFullAuto] = useState(false);
   const [chrome, setChrome] = useState(false);
-  const [permissionMode, setPermissionMode] = useState('');
+  const [permissionMode, setPermissionMode] = useState('default');
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('');
   const [allowedTools, setAllowedTools] = useState('');
   const [disallowedTools, setDisallowedTools] = useState('');
@@ -29,6 +47,7 @@ export function CreateAgent() {
   const [effort, setEffort] = useState<EffortLevel>('default');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const instructionFileName = provider === 'codex' ? 'AGENTS.md' : 'CLAUDE.md';
 
   // Directory browser
   const [dirListing, setDirListing] = useState<DirListing | null>(null);
@@ -42,6 +61,13 @@ export function CreateAgent() {
     api.getTemplates().then(setTemplates).catch(() => {});
     api.getSessions().then(setSessions).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const validValues = new Set(getPermissionOptions(provider).map((option) => option.value));
+    if (!validValues.has(permissionMode)) {
+      setPermissionMode('default');
+    }
+  }, [provider, permissionMode]);
 
   const browseTo = async (path?: string) => {
     try {
@@ -81,8 +107,13 @@ export function CreateAgent() {
         whatsappPhone: whatsappPhone || undefined,
         slackWebhookUrl: slackWebhookUrl || undefined,
         flags: {
-          dangerouslySkipPermissions: skipPermissions || undefined,
-          fullAuto: fullAuto || undefined,
+          dangerouslySkipPermissions:
+            provider === 'claude' && ['bypassPermissions', 'dontAsk'].includes(permissionMode)
+              ? true
+              : provider === 'codex' && permissionMode === 'bypassPermissions'
+                ? true
+                : undefined,
+          fullAuto: provider === 'codex' && permissionMode === 'fullAuto' ? true : undefined,
           chrome: chrome || undefined,
           permissionMode: permissionMode || undefined,
           maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
@@ -257,28 +288,19 @@ export function CreateAgent() {
       </div>
 
       <div className="form-group">
+        <label>Permission Level</label>
+        <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+          {getPermissionOptions(provider).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-group">
         <label>{t('create.flags')}</label>
         <div className="checkbox-group">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={skipPermissions}
-              onChange={(e) => setSkipPermissions(e.target.checked)}
-            />
-            {provider === 'claude'
-              ? '--dangerously-skip-permissions'
-              : '--dangerously-bypass-approvals-and-sandbox'}
-          </label>
-          {provider === 'codex' && (
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={fullAuto}
-                onChange={(e) => setFullAuto(e.target.checked)}
-              />
-              --full-auto
-            </label>
-          )}
           {provider === 'claude' && (
             <label className="checkbox-label">
               <input
@@ -294,18 +316,6 @@ export function CreateAgent() {
 
       {provider === 'claude' && (
         <>
-          <div className="form-group">
-            <label>--permission-mode</label>
-            <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
-              <option value="">Default</option>
-              <option value="default">default</option>
-              <option value="acceptEdits">acceptEdits</option>
-              <option value="bypassPermissions">bypassPermissions</option>
-              <option value="dontAsk">dontAsk</option>
-              <option value="plan">plan</option>
-            </select>
-          </div>
-
           <div className="form-group">
             <label>--max-budget-usd</label>
             <input
@@ -372,7 +382,7 @@ export function CreateAgent() {
 
       <div className="form-group">
         <label>
-          {t('create.claudeMd')}{' '}
+          {instructionFileName}{' '}
           {templates.length > 0 && (
             <select
               style={{ marginLeft: 8, padding: '2px 4px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', fontSize: 12 }}
@@ -389,7 +399,7 @@ export function CreateAgent() {
         <textarea
           value={claudeMd}
           onChange={(e) => setClaudeMd(e.target.value)}
-          placeholder={t('create.claudeMdPlaceholder')}
+          placeholder={provider === 'codex' ? 'Optional AGENTS.md content for the agent' : t('create.claudeMdPlaceholder')}
           style={{ minHeight: 160 }}
         />
       </div>

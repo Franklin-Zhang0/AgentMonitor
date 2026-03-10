@@ -62,6 +62,14 @@ export interface ProcessStartOpts {
   mcpConfig?: string;
 }
 
+const CODEX_PERMISSION_PRESETS = new Set([
+  'default',
+  'readOnly',
+  'workspaceWrite',
+  'fullAuto',
+  'bypassPermissions',
+]);
+
 /** Shell-escape a string for use with spawn shell: true */
 function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
@@ -181,7 +189,7 @@ export class AgentProcess extends EventEmitter {
       args.push('--chrome');
     }
 
-    if (opts.permissionMode) {
+    if (opts.permissionMode && !CODEX_PERMISSION_PRESETS.has(opts.permissionMode)) {
       args.push('--permission-mode', shellEscape(opts.permissionMode));
     }
 
@@ -214,20 +222,30 @@ export class AgentProcess extends EventEmitter {
   private buildCodexCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
     // Shell-escape values that may contain spaces since we use shell: true
     const args: string[] = ['exec'];
+    const permissionPreset = opts.permissionMode || 'default';
     const codexOptions: string[] = ['--json', '--skip-git-repo-check'];
+    const resumeOptions: string[] = ['--json', '--skip-git-repo-check'];
 
     if (opts.effort) {
       codexOptions.push('-c', shellEscape(`model_reasoning_effort="${opts.effort}"`));
+      resumeOptions.push('-c', shellEscape(`model_reasoning_effort="${opts.effort}"`));
     }
 
-    if (opts.dangerouslySkipPermissions) {
+    if (permissionPreset === 'bypassPermissions' || opts.dangerouslySkipPermissions) {
       codexOptions.push('--dangerously-bypass-approvals-and-sandbox');
-    } else if (opts.fullAuto) {
+      resumeOptions.push('--dangerously-bypass-approvals-and-sandbox');
+    } else if (permissionPreset === 'fullAuto' || opts.fullAuto) {
       codexOptions.push('--full-auto');
+      resumeOptions.push('--full-auto');
+    } else if (permissionPreset === 'readOnly') {
+      codexOptions.push('--ask-for-approval', 'untrusted', '--sandbox', 'read-only');
+    } else if (permissionPreset === 'workspaceWrite') {
+      codexOptions.push('--ask-for-approval', 'on-request', '--sandbox', 'workspace-write');
     }
 
     if (opts.model) {
       codexOptions.push('--model', shellEscape(opts.model));
+      resumeOptions.push('--model', shellEscape(opts.model));
     }
 
     // `exec resume` does not accept --cd; spawn cwd handles session filtering.
@@ -238,7 +256,7 @@ export class AgentProcess extends EventEmitter {
 
     if (opts.resume) {
       // Continuation mode for existing Codex thread/session.
-      args.push('resume', ...codexOptions, shellEscape(opts.resume), shellEscape(opts.prompt));
+      args.push('resume', ...resumeOptions, shellEscape(opts.resume), shellEscape(opts.prompt));
     } else {
       // New one-shot session.
       args.push(...codexOptions, shellEscape(opts.prompt));

@@ -42,6 +42,12 @@ describe('WorktreeManager', () => {
     expect(claudeMd).toBe('# My Config');
   });
 
+  it('creates a worktree with AGENTS.md for codex', () => {
+    const result = manager.createWorktree(tmpDir, 'test-branch-agents', '# Codex Config', 'codex');
+    const agentsMd = fs.readFileSync(path.join(result.worktreePath, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toBe('# Codex Config');
+  });
+
   it('removes a worktree', () => {
     const result = manager.createWorktree(tmpDir, 'to-remove');
     expect(fs.existsSync(result.worktreePath)).toBe(true);
@@ -55,6 +61,13 @@ describe('WorktreeManager', () => {
     const result = manager.createWorktree(tmpDir, 'update-md', '# Old');
     manager.updateClaudeMd(result.worktreePath, '# New');
     const content = manager.getClaudeMd(result.worktreePath);
+    expect(content).toBe('# New');
+  });
+
+  it('updates AGENTS.md in a codex worktree', () => {
+    const result = manager.createWorktree(tmpDir, 'update-agents-md', '# Old', 'codex');
+    manager.updateClaudeMd(result.worktreePath, '# New', 'codex');
+    const content = manager.getClaudeMd(result.worktreePath, 'codex');
     expect(content).toBe('# New');
   });
 

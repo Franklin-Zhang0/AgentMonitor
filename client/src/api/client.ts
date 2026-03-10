@@ -19,6 +19,21 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 
 export type AgentProvider = 'claude' | 'codex';
 
+export interface AgentFlags {
+  dangerouslySkipPermissions?: boolean;
+  resume?: string;
+  model?: string;
+  effort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  fullAuto?: boolean;
+  chrome?: boolean;
+  permissionMode?: string;
+  maxBudgetUsd?: number;
+  allowedTools?: string;
+  disallowedTools?: string;
+  addDirs?: string;
+  mcpConfig?: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -31,7 +46,7 @@ export interface Agent {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags: Record<string, unknown>;
+    flags: AgentFlags;
   };
   worktreePath?: string;
   messages: Array<{
@@ -118,7 +133,7 @@ export const api = {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags?: Record<string, unknown>;
+    flags?: AgentFlags;
   }) => request<Agent>('/agents', { method: 'POST', body: JSON.stringify(data) }),
   stopAgent: (id: string) =>
     request('/agents/' + id + '/stop', { method: 'POST' }),
@@ -137,6 +152,11 @@ export const api = {
     request('/agents/' + id + '/rename', {
       method: 'PUT',
       body: JSON.stringify({ name }),
+    }),
+  updateAgentPermissions: (id: string, permissionMode?: string) =>
+    request('/agents/' + id + '/permissions', {
+      method: 'PUT',
+      body: JSON.stringify({ permissionMode }),
     }),
   updateClaudeMd: (id: string, content: string) =>
     request('/agents/' + id + '/claude-md', {

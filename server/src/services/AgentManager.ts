@@ -10,6 +10,7 @@ import { SlackNotifier } from './SlackNotifier.js';
 
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
+  private pendingRestartPrompts: Map<string, string> = new Map();
   private store: AgentStore;
   private worktreeManager: WorktreeManager;
   private emailNotifier: EmailNotifier;
@@ -38,6 +39,7 @@ export class AgentManager extends EventEmitter {
         agentConfig.directory,
         branchName,
         agentConfig.claudeMd,
+        agentConfig.provider,
       );
       worktreePath = result.worktreePath;
       worktreeBranch = result.branch;
@@ -90,6 +92,21 @@ export class AgentManager extends EventEmitter {
     });
 
     proc.on('exit', (code: number | null) => {
+      const restartPrompt = this.pendingRestartPrompts.get(agent.id);
+      if (restartPrompt !== undefined) {
+        this.pendingRestartPrompts.delete(agent.id);
+        this.processes.delete(agent.id);
+
+        const current = this.store.getAgent(agent.id);
+        if (current) {
+          current.status = 'running';
+          current.lastActivity = Date.now();
+          this.store.saveAgent(current);
+          this.startProcess(current, restartPrompt);
+        }
+        return;
+      }
+
       // Don't override 'stopped' status (set when result message is received)
       const current = this.store.getAgent(agent.id);
       if (current && current.status !== 'stopped') {
@@ -332,6 +349,25 @@ export class AgentManager extends EventEmitter {
     }
   }
 
+  updatePermissionMode(agentId: string, permissionMode?: string): void {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) return;
+
+    agent.config.flags.permissionMode = permissionMode || undefined;
+
+    if (agent.config.provider === 'codex') {
+      agent.config.flags.fullAuto = permissionMode === 'fullAuto' ? true : undefined;
+      agent.config.flags.dangerouslySkipPermissions = permissionMode === 'bypassPermissions' ? true : undefined;
+    } else {
+      agent.config.flags.dangerouslySkipPermissions =
+        permissionMode === 'bypassPermissions' || permissionMode === 'dontAsk' ? true : undefined;
+    }
+
+    agent.lastActivity = Date.now();
+    this.store.saveAgent(agent);
+    this.emit('agent:update', agentId, agent);
+  }
+
   sendMessage(agentId: string, text: string): void {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
@@ -347,6 +383,24 @@ export class AgentManager extends EventEmitter {
     this.emit('agent:update', agentId, agent);
 
     const proc = this.processes.get(agentId);
+    if (
+      agent.status === 'waiting_input' &&
+      agent.config.provider === 'claude' &&
+      proc &&
+      proc.isRunning
+    ) {
+      // Claude runs in one-shot mode with stdin closed, so approval requires
+      // restarting the session in --resume mode with the user's response.
+      this.pendingRestartPrompts.set(agentId, text);
+      this.updateAgentStatus(agentId, 'running');
+      proc.stop();
+      this.emit('agent:message', agentId, {
+        type: 'user',
+        text,
+      });
+      return;
+    }
+
     if (proc && proc.isRunning) {
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
@@ -409,9 +463,17 @@ export class AgentManager extends EventEmitter {
 
   updateClaudeMd(agentId: string, content: string): void {
     const agent = this.store.getAgent(agentId);
-    if (agent?.worktreePath) {
-      this.worktreeManager.updateClaudeMd(agent.worktreePath, content);
+    if (!agent) return;
+
+    agent.config.claudeMd = content;
+    agent.lastActivity = Date.now();
+    this.store.saveAgent(agent);
+
+    if (agent.worktreePath) {
+      this.worktreeManager.updateClaudeMd(agent.worktreePath, content, agent.config.provider);
     }
+
+    this.emit('agent:update', agentId, agent);
   }
 
   getAgent(agentId: string): Agent | undefined {

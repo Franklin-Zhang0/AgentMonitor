@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type Agent } from '../api/client';
+import { api, type Agent, type AgentProvider } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
 
@@ -9,6 +9,26 @@ function toggleTheme() {
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('agentmonitor-theme', next);
+}
+
+function getPermissionOptions(provider: AgentProvider) {
+  if (provider === 'codex') {
+    return [
+      { value: 'default', label: 'Default' },
+      { value: 'readOnly', label: 'Read-only approvals' },
+      { value: 'workspaceWrite', label: 'Workspace-write approvals' },
+      { value: 'fullAuto', label: 'Full auto' },
+      { value: 'bypassPermissions', label: 'Bypass approvals and sandbox' },
+    ];
+  }
+
+  return [
+    { value: 'default', label: 'Default' },
+    { value: 'acceptEdits', label: 'Accept edits' },
+    { value: 'bypassPermissions', label: 'Bypass permissions' },
+    { value: 'dontAsk', label: 'Do not ask' },
+    { value: 'plan', label: 'Plan mode' },
+  ];
 }
 
 export function AgentChat() {
@@ -21,7 +41,9 @@ export function AgentChat() {
   const [slashFilter, setSlashFilter] = useState('');
   const [selectedHint, setSelectedHint] = useState(0);
   const [editingClaudeMd, setEditingClaudeMd] = useState(false);
+  const [editingPermissions, setEditingPermissions] = useState(false);
   const [claudeMdContent, setClaudeMdContent] = useState('');
+  const [permissionMode, setPermissionMode] = useState('default');
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -29,6 +51,13 @@ export function AgentChat() {
   const hasUpdateRef = useRef(false);
   const shouldAutoScrollRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  const instructionFileName = agent?.config.provider === 'codex' ? 'AGENTS.md' : 'CLAUDE.md';
+
+  useEffect(() => {
+    if (agent) {
+      setPermissionMode(agent.config.flags.permissionMode || 'default');
+    }
+  }, [agent]);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -46,7 +75,7 @@ export function AgentChat() {
     { cmd: '/exit', desc: t('chat.slashExit') },
     { cmd: '/export', desc: t('chat.slashExport') },
     { cmd: '/help', desc: t('chat.slashHelp') },
-    { cmd: '/memory', desc: t('chat.slashMemory') },
+    { cmd: '/memory', desc: `Edit ${instructionFileName}` },
     { cmd: '/model', desc: t('chat.slashModel') },
     { cmd: '/permissions', desc: t('chat.slashPermissions') },
     { cmd: '/plan', desc: t('chat.slashPlan') },
@@ -492,6 +521,44 @@ export function AgentChat() {
     setEditingClaudeMd(false);
   };
 
+  const handleSavePermissions = async () => {
+    if (!id) return;
+    await api.updateAgentPermissions(id, permissionMode);
+    setAgent((prev) =>
+      prev
+        ? {
+            ...prev,
+            config: {
+              ...prev.config,
+              flags: {
+                ...prev.config.flags,
+                permissionMode,
+                fullAuto:
+                  prev.config.provider === 'codex' && permissionMode === 'fullAuto'
+                    ? true
+                    : undefined,
+                dangerouslySkipPermissions:
+                  prev.config.provider === 'codex'
+                    ? permissionMode === 'bypassPermissions'
+                      ? true
+                      : undefined
+                    : ['bypassPermissions', 'dontAsk'].includes(permissionMode)
+                      ? true
+                      : undefined,
+              },
+            },
+          }
+        : prev,
+    );
+    setEditingPermissions(false);
+  };
+
+  const handlePermissionResponse = (approved: boolean) => {
+    if (!id) return;
+    const response = approved ? 'Yes, approve this request.' : 'No, do not approve this request.';
+    api.sendMessage(id, response);
+  };
+
   const filteredCommands = slashCommands.filter((c) =>
     c.cmd.startsWith(slashFilter || '/'),
   );
@@ -526,7 +593,16 @@ export function AgentChat() {
               setEditingClaudeMd(true);
             }}
           >
-            {t('chat.editClaudeMd')}
+            {`Edit ${instructionFileName}`}
+          </button>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={() => {
+              setPermissionMode(agent.config.flags.permissionMode || 'default');
+              setEditingPermissions(true);
+            }}
+          >
+            Permissions
           </button>
           {(agent.status === 'running' || agent.status === 'waiting_input') && (
             <button className="btn btn-sm btn-danger" onClick={() => id && api.stopAgent(id)}>
@@ -537,6 +613,24 @@ export function AgentChat() {
       </div>
 
       <div ref={messagesContainerRef} className="chat-messages">
+        {agent.status === 'waiting_input' && agent.config.provider === 'claude' && (
+          <div className="permission-banner">
+            <div>
+              <div className="permission-banner-title">Permission Required</div>
+              <div className="permission-banner-text">
+                Claude is waiting for approval. Choose whether to allow the requested action.
+              </div>
+            </div>
+            <div className="permission-banner-actions">
+              <button className="btn btn-sm" onClick={() => handlePermissionResponse(true)}>
+                Allow
+              </button>
+              <button className="btn btn-sm btn-outline" onClick={() => handlePermissionResponse(false)}>
+                Deny
+              </button>
+            </div>
+          </div>
+        )}
         {agent.messages.map((msg) => (
           <div key={msg.id} className={`chat-message ${msg.role}`}>
             {msg.content}
@@ -585,7 +679,7 @@ export function AgentChat() {
         <div className="modal-overlay" onClick={() => setEditingClaudeMd(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">{t('chat.editClaudeMdTitle')}</span>
+              <span className="modal-title">{`Edit ${instructionFileName}`}</span>
               <button
                 className="btn btn-sm btn-outline"
                 onClick={() => setEditingClaudeMd(false)}
@@ -611,6 +705,37 @@ export function AgentChat() {
             />
             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn" onClick={handleSaveClaudeMd}>
+                {t('common.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPermissions && (
+        <div className="modal-overlay" onClick={() => setEditingPermissions(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Permission Level</span>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setEditingPermissions(false)}
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+            <div className="form-group">
+              <label>Permission Level</label>
+              <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+                {getPermissionOptions(agent.config.provider).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={handleSavePermissions}>
                 {t('common.save')}
               </button>
             </div>

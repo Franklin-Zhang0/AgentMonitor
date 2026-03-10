@@ -127,6 +127,16 @@ export function agentRoutes(manager: AgentManager): Router {
     res.json({ ok: true });
   });
 
+  router.put('/:id/permissions', (req, res) => {
+    const { permissionMode } = req.body;
+    if (permissionMode !== undefined && typeof permissionMode !== 'string') {
+      res.status(400).json({ error: 'permissionMode must be a string when provided' });
+      return;
+    }
+    manager.updatePermissionMode(req.params.id, permissionMode);
+    res.json({ ok: true });
+  });
+
   // Update CLAUDE.md
   router.put('/:id/claude-md', (req, res) => {
     const { content } = req.body;
