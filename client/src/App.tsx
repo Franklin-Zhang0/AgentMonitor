@@ -39,12 +39,20 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
       >
         ?
       </a>
-      <button
+      <select
         className="lang-toggle"
-        onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+        value={lang}
+        onChange={(e) => setLang(e.target.value as typeof lang)}
+        style={{ cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 13 }}
       >
-        {lang === 'en' ? '中文' : 'EN'}
-      </button>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="ja">日本語</option>
+        <option value="ko">한국어</option>
+        <option value="es">ES</option>
+        <option value="fr">FR</option>
+        <option value="de">DE</option>
+      </select>
       {onLogout && (
         <button
           className="lang-toggle"

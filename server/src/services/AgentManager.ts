@@ -1,5 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
+import { readFileSync } from 'fs';
+import { basename } from 'path';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
 import { AgentProcess, type StreamMessage } from './AgentProcess.js';
@@ -59,6 +61,9 @@ export class AgentManager extends EventEmitter {
       messages: [],
       lastActivity: Date.now(),
       createdAt: Date.now(),
+      projectName: basename(agentConfig.directory),
+      mcpServers: this.parseMcpServers(agentConfig.flags.mcpConfig),
+      currentTask: agentConfig.prompt.length > 120 ? agentConfig.prompt.slice(0, 120) + '...' : agentConfig.prompt,
     };
 
     this.store.saveAgent(agent);
@@ -148,14 +153,30 @@ export class AgentManager extends EventEmitter {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
 
+    const prevMsgCount = agent.messages.length;
+
     if (provider === 'codex') {
       this.handleCodexMessage(agent, msg);
     } else {
       this.handleClaudeMessage(agent, msg);
     }
 
-    // Emit raw message (kept for backward compat) + full agent snapshot for streaming
+    // Emit raw message (kept for backward compat)
     this.emit('agent:message', agentId, msg);
+
+    // Emit lightweight delta with only new messages + metadata (efficient for tunnel)
+    const newMessages = agent.messages.slice(prevMsgCount);
+    if (newMessages.length > 0) {
+      this.emit('agent:delta', agentId, {
+        messages: newMessages,
+        status: agent.status,
+        costUsd: agent.costUsd,
+        tokenUsage: agent.tokenUsage,
+        lastActivity: agent.lastActivity,
+      });
+    }
+
+    // Full snapshot for dashboard cards (less frequent)
     const updated = this.store.getAgent(agentId);
     if (updated) {
       this.emit('agent:update', agentId, updated);
@@ -218,11 +239,54 @@ export class AgentManager extends EventEmitter {
       }
     }
 
+    // Track context window usage from system messages
+    const anyMsg = msg as Record<string, unknown>;
+    if (anyMsg.num_turns !== undefined || anyMsg.session_id !== undefined) {
+      // Claude verbose stream includes context info
+      const contextUsed = (anyMsg.input_tokens_used as number) || 0;
+      const contextTotal = (anyMsg.max_input_tokens as number) || 200000;
+      if (contextUsed > 0) {
+        agent.contextWindow = { used: contextUsed, total: contextTotal };
+        this.store.saveAgent(agent);
+      }
+    }
+
+    // Extract PR URLs from assistant messages
+    if (msg.type === 'assistant') {
+      const message = msg.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+      if (message?.content) {
+        for (const block of message.content) {
+          if (block.type === 'text' && block.text) {
+            const prUrl = this.extractPrUrl(block.text);
+            if (prUrl && !agent.prUrl) {
+              agent.prUrl = prUrl;
+              this.store.saveAgent(agent);
+            }
+          }
+        }
+      }
+      if (msg.text) {
+        const prUrl = this.extractPrUrl(msg.text);
+        if (prUrl && !agent.prUrl) {
+          agent.prUrl = prUrl;
+          this.store.saveAgent(agent);
+        }
+      }
+    }
+
     if (msg.type === 'result') {
       // Cost is at top level with --verbose: total_cost_usd
       const cost = (msg as { total_cost_usd?: number }).total_cost_usd || msg.result?.cost_usd;
       if (cost) {
         agent.costUsd = cost;
+      }
+
+      // Extract context window from result
+      const resultMsg = msg as Record<string, unknown>;
+      const inputTokens = (resultMsg.total_input_tokens as number) || (resultMsg.input_tokens_used as number);
+      const maxTokens = (resultMsg.max_input_tokens as number) || 200000;
+      if (inputTokens) {
+        agent.contextWindow = { used: inputTokens, total: maxTokens };
       }
       this.store.saveAgent(agent);
       this.updateAgentStatus(agent.id, 'stopped');
@@ -296,14 +360,63 @@ export class AgentManager extends EventEmitter {
     }
   }
 
+  private parseMcpServers(mcpConfigPath?: string): string[] {
+    if (!mcpConfigPath) return [];
+    try {
+      const content = readFileSync(mcpConfigPath, 'utf-8');
+      const config = JSON.parse(content);
+      // MCP config has { mcpServers: { "name": { ... } } } format
+      const servers = config.mcpServers || config;
+      return Object.keys(servers);
+    } catch {
+      return [];
+    }
+  }
+
+  private extractPrUrl(text: string): string | undefined {
+    // Match GitHub/GitLab PR URLs
+    const prPattern = /https?:\/\/(?:github\.com|gitlab\.com)\/[^\s]+\/pull\/\d+/;
+    const match = text.match(prPattern);
+    return match?.[0];
+  }
+
   private isClaudePermissionPrompt(msg: StreamMessage): boolean {
     if (msg.type === 'assistant' && msg.subtype === 'permission') return true;
     const text = (msg.text || '').toLowerCase();
     return text.includes('permission') && text.includes('allow');
   }
 
+  private extractInputPrompt(msg: StreamMessage): { prompt: string; choices?: string[] } {
+    const text = msg.text || msg.item?.text || '';
+    const choices: string[] = [];
+
+    // Claude permission prompts typically offer Yes/No/Always
+    if (msg.subtype === 'permission' || (text.toLowerCase().includes('permission') && text.toLowerCase().includes('allow'))) {
+      choices.push('Yes', 'No', 'Always allow');
+    }
+
+    // Detect numbered choices (1. Option A  2. Option B)
+    const numberedPattern = /^\s*(\d+)[.)]\s+(.+)$/gm;
+    let match;
+    while ((match = numberedPattern.exec(text)) !== null) {
+      choices.push(match[2].trim());
+    }
+
+    // Detect (y/n) style prompts
+    if (/\(y\/n\)/i.test(text)) {
+      if (choices.length === 0) choices.push('Yes', 'No');
+    }
+
+    return { prompt: text, choices: choices.length > 0 ? choices : undefined };
+  }
+
   private handleWaitingInput(agent: Agent, msg: StreamMessage): void {
     this.updateAgentStatus(agent.id, 'waiting_input');
+
+    // Extract prompt and choices for the web UI
+    const inputInfo = this.extractInputPrompt(msg);
+    this.emit('agent:input_required', agent.id, inputInfo);
+
     const notificationMessage = `Agent is waiting for permission/input.\nLast message: ${msg.text || msg.item?.text || JSON.stringify(msg)}`;
     if (agent.config.adminEmail) {
       this.emailNotifier.notifyHumanNeeded(

@@ -30,9 +30,10 @@ The server starts on `http://localhost:3456`.
 
 1. Navigate to **New Agent** in the nav bar
 2. Enter a name, working directory, and prompt
-3. Select provider (Claude Code or Codex)
-4. Configure flags (e.g., `--dangerously-skip-permissions`)
-5. Click **Create Agent**
+3. Use **Browse** to pick a directory — if a `CLAUDE.md` exists, you'll be prompted to load it
+4. Select provider (Claude Code or Codex)
+5. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
+6. Click **Create Agent**
 
 The agent will start in an isolated git worktree and begin executing your prompt.
 
@@ -45,3 +46,12 @@ The dashboard shows all active agents as cards with:
 - Latest message preview
 
 Click any card to enter the full chat interface.
+
+## Settings
+
+Open **Settings** from the dashboard to configure:
+- **Auto-delete retention**: Automatically remove stopped agents after a configurable period (default 24h, set to 0 to keep forever)
+
+## Language
+
+Use the language dropdown in the top-right corner to switch between 7 supported languages: English, 中文, 日本語, 한국어, Español, Français, Deutsch.

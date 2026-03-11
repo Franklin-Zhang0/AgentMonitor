@@ -49,6 +49,7 @@ export interface Agent {
     flags: AgentFlags;
   };
   worktreePath?: string;
+  worktreeBranch?: string;
   messages: Array<{
     id: string;
     role: string;
@@ -59,6 +60,11 @@ export interface Agent {
   createdAt: number;
   costUsd?: number;
   tokenUsage?: { input: number; output: number };
+  projectName?: string;
+  prUrl?: string;
+  mcpServers?: string[];
+  contextWindow?: { used: number; total: number };
+  currentTask?: string;
 }
 
 export interface Template {
@@ -118,6 +124,7 @@ export interface MetaAgentConfig {
 
 export interface ServerSettings {
   agentRetentionMs: number;
+  promptSuggestions: string[];
 }
 
 export const api = {
@@ -188,6 +195,8 @@ export const api = {
   // Directories
   listDirectory: (path?: string) =>
     request<DirListing>(`/directories${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  checkClaudeMd: (path: string) =>
+    request<{ exists: boolean; content?: string }>(`/directories/claude-md?path=${encodeURIComponent(path)}`),
 
   // Pipeline Tasks
   getTasks: () => request<PipelineTask[]>('/tasks'),

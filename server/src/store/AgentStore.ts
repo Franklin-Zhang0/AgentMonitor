@@ -7,10 +7,18 @@ import type { PipelineTask, MetaAgentConfig } from '../models/Task.js';
 
 export interface ServerSettings {
   agentRetentionMs: number; // default 86400000 (24h), 0 = disabled
+  promptSuggestions: string[]; // user-editable prompt quick-fill options
 }
 
 const DEFAULT_SETTINGS: ServerSettings = {
   agentRetentionMs: 86_400_000, // 24 hours
+  promptSuggestions: [
+    'kick off',
+    'keep working until confirmed all required features implemented without bugs during test',
+    'review the codebase and suggest improvements',
+    'fix the failing tests',
+    'refactor for better readability and maintainability',
+  ],
 };
 
 export class AgentStore {

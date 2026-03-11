@@ -201,10 +201,76 @@ export function Dashboard() {
                   {agent.status}
                 </span>
               </div>
-              <div className="card-body">{getLastMessage(agent)}</div>
+
+              {/* Project & Branch */}
+              <div className="card-meta">
+                <span className="card-meta-item" title={agent.config.directory}>
+                  <span className="card-meta-icon">&#128193;</span>
+                  {agent.projectName || agent.config.directory.split('/').pop()}
+                  {agent.worktreeBranch && (
+                    <span className="card-branch">{agent.worktreeBranch}</span>
+                  )}
+                </span>
+                {agent.prUrl && (
+                  <a
+                    className="card-pr-link"
+                    href={agent.prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    PR
+                  </a>
+                )}
+              </div>
+
+              {/* Model & Context */}
+              <div className="card-meta">
+                {agent.config.flags.model && (
+                  <span className="card-meta-item">
+                    <span className="card-meta-icon">&#9881;</span>
+                    {agent.config.flags.model as string}
+                  </span>
+                )}
+                {agent.contextWindow && (
+                  <span className="card-meta-item card-context">
+                    <span className="card-context-bar">
+                      <span
+                        className="card-context-fill"
+                        style={{ width: `${Math.min(100, (agent.contextWindow.used / agent.contextWindow.total) * 100)}%` }}
+                      />
+                    </span>
+                    {Math.round((agent.contextWindow.used / agent.contextWindow.total) * 100)}%
+                  </span>
+                )}
+              </div>
+
+              {/* Task description */}
+              <div className="card-body">
+                {agent.currentTask || getLastMessage(agent)}
+              </div>
+
+              {/* MCP Servers */}
+              {agent.mcpServers && agent.mcpServers.length > 0 && (
+                <div className="card-mcp">
+                  {agent.mcpServers.map((s) => (
+                    <span key={s} className="card-mcp-tag">{s}</span>
+                  ))}
+                </div>
+              )}
+
               <div className="card-footer">
-                <span>{agent.config.directory}</span>
                 <span>{formatTime(agent.lastActivity)}</span>
+                {agent.costUsd !== undefined && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    ${agent.costUsd.toFixed(4)}
+                  </span>
+                )}
+                {agent.tokenUsage && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {agent.tokenUsage.input + agent.tokenUsage.output} {t('common.tokens')}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 {(agent.status === 'running' || agent.status === 'waiting_input') && (
@@ -221,11 +287,6 @@ export function Dashboard() {
                 >
                   {t('common.delete')}
                 </button>
-                {agent.costUsd !== undefined && (
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
-                    ${agent.costUsd.toFixed(4)}
-                  </span>
-                )}
               </div>
             </div>
           ))}

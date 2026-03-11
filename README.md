@@ -1,5 +1,7 @@
 # Agent Monitor
 
+**English** | [中文文档](README-zh.md)
+
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -18,10 +20,11 @@
 - **Git worktree isolation** — Every agent operates in its own branch, preventing conflicts when multiple agents work in the same repository
 
 ### Real-Time Monitoring & Interaction
-- **Live streaming** — Watch agent output in real-time over WebSocket
+- **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay)
 - **Web terminal** — Full chat interface with 25+ slash commands matching CLI behavior
 - **Cost & token tracking** — Per-agent cost (Claude) and token usage (Codex) displayed in real time
 - **Double-Esc interrupt** — Press Escape twice to send SIGINT to any running agent
+- **Auto-delete expired agents** — Configurable retention period for stopped agents (default 24h, adjustable in Settings)
 
 ### Notifications — Email, WhatsApp & Slack
 Stay informed wherever you are. Agent Monitor sends instant notifications when agents need human attention.
@@ -42,14 +45,29 @@ All channels can be enabled simultaneously — configure an admin email, WhatsAp
 
 > See the [Notifications Guide](docs/guide/notifications.md) for detailed setup instructions.
 
+### Remote Access via Relay Server
+- **Access from anywhere** — Manage agents from your phone, laptop, or any device through a public relay server
+- **Secure WebSocket tunnel** — The agent machine connects outbound to the relay; no inbound ports needed
+- **Batch remote agents** — Run and monitor dozens of agents on a powerful remote machine while controlling them from any lightweight device
+- **Password-protected dashboard** — JWT-based authentication with 24-hour session expiry
+- **Auto-reconnect** — Tunnel reconnects automatically if the connection drops (exponential backoff)
+- **Zero overhead locally** — When relay is not configured, the server runs in local-only mode with no extra cost
+
+```
+Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunnel── Agent Machine (:3456)
+```
+
+> See the [Remote Access Guide](docs/guide/remote-access.md) for setup instructions.
+
 ### Template & Instruction Management
 - **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents
+- **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects existing CLAUDE.md and offers to load it
 - **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
 - **Session resume** — Pick up previous Claude Code sessions where they left off
 
 ### Internationalization
-- Full **English** and **Chinese** localization
-- One-click language toggle persisted across sessions
+- **7 languages**: English, Chinese (中文), Japanese (日本語), Korean (한국어), Spanish, French, German
+- Language selector persisted across sessions
 
 ---
 
@@ -63,8 +81,8 @@ All channels can be enabled simultaneously — configure an admin email, WhatsAp
 |--------------|-----------|
 | ![Create Agent](docs/screenshots/create-agent.png) | ![Templates](docs/screenshots/templates.png) |
 
-| Chinese Language |
-|------------------|
+| Multi-Language Support |
+|------------------------|
 | ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
 
 ---
@@ -161,15 +179,25 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 1. Click **"+ New Agent"** on the Dashboard
 2. Select **Provider** — Claude Code or Codex
-3. Set **Name**, **Working Directory**, and **Prompt**
-4. Configure **Flags** (e.g., `--dangerously-skip-permissions`)
-5. Optionally load a **CLAUDE.md template**
-6. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
-7. Click **Create Agent**
+3. Set **Name**, **Working Directory** (use Browse to pick a directory), and **Prompt**
+4. If the selected directory contains a `CLAUDE.md`, you'll be prompted to load it automatically
+5. Configure **Flags** (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
+6. Optionally load a **CLAUDE.md template** or write custom instructions
+7. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
+8. Click **Create Agent**
 
 ### Dashboard
 
-Agents appear as status cards showing provider, status, latest output, and cost. Click any card to open the full chat interface.
+Each agent is represented by a rich information card displaying:
+- **Project & git branch** — which repository and branch the agent is working on
+- **Pull Request link** — if the agent created a PR, a direct link is shown (auto-detected)
+- **Model & context usage** — which LLM model and a visual bar for context window consumption
+- **Status** — whether the agent is actively working, idle, or waiting for permission
+- **Task description** — a summary of what the agent is currently doing
+- **MCP servers** — connected Model Context Protocol servers (parsed from `--mcp-config`)
+- **Cost / token tracking** — per-agent cost (Claude) or token usage (Codex)
+
+Click any card to open the full chat interface.
 
 ### Agent Chat
 
@@ -227,12 +255,20 @@ Create, edit, and reuse CLAUDE.md instruction templates across agents.
 | PUT | `/api/templates/:id` | Update template |
 | DELETE | `/api/templates/:id` | Delete template |
 
+### Settings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/settings` | Get server settings (agent retention, etc.) |
+| PUT | `/api/settings` | Update server settings |
+
 ### Other
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/sessions` | List previous Claude sessions |
 | GET | `/api/directories?path=/home` | Browse server directories |
+| GET | `/api/directories/claude-md?path=/project` | Check if CLAUDE.md exists in a directory |
 | GET | `/api/health` | Health check |
 
 ### Socket.IO Events
@@ -243,7 +279,9 @@ Create, edit, and reuse CLAUDE.md instruction templates across agents.
 | `agent:leave` | Client → Server | Unsubscribe |
 | `agent:send` | Client → Server | Send message |
 | `agent:interrupt` | Client → Server | Send interrupt |
-| `agent:message` | Server → Client | Agent output |
+| `agent:message` | Server → Client | Agent output (legacy) |
+| `agent:update` | Server → Client | Full agent snapshot (real-time streaming) |
+| `agent:snapshot` | Server → Client | Dashboard broadcast update |
 | `agent:status` | Server → Client | Status change |
 | `task:update` | Server → Client | Pipeline task updated |
 | `pipeline:complete` | Server → Client | Pipeline complete |
@@ -282,7 +320,7 @@ The relay supports **password-based login** via `RELAY_PASSWORD` to protect the 
 | | Claude Code | Codex |
 |---|---|---|
 | **Binary** | `claude` | `codex` |
-| **Flags** | `--dangerously-skip-permissions`, `--resume`, `--model` | `--dangerously-bypass-approvals-and-sandbox`, `--full-auto`, `--model` |
+| **Flags** | `--dangerously-skip-permissions`, `--permission-mode`, `--chrome`, `--max-budget-usd`, `--allowedTools`, `--disallowedTools`, `--add-dir`, `--mcp-config`, `--resume`, `--model` | `--dangerously-bypass-approvals-and-sandbox`, `--full-auto`, `--model` |
 | **Tracking** | Cost (USD) | Token usage |
 
 ---
@@ -328,7 +366,7 @@ AgentMonitor/
   client/                   # React + Vite
     src/
       pages/                # Dashboard, Chat, Pipeline, Templates
-      i18n/                 # EN / ZH localization
+      i18n/                 # 7-language localization (EN/ZH/JA/KO/ES/FR/DE)
       api/                  # REST + Socket.IO clients
 ```
 

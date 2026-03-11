@@ -14,7 +14,7 @@ const STORAGE_KEY = 'agentmonitor-lang';
 function getInitialLang(): Language {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'en' || stored === 'zh') return stored;
+    if (['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de'].includes(stored!)) return stored as Language;
   } catch {}
   return 'en';
 }

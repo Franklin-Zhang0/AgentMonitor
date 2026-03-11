@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -54,17 +55,32 @@ export function createApp() {
 
   // Serve built docs (VitePress)
   const docsDist = path.resolve(__dirname, '..', '..', 'docs', '.vitepress', 'dist');
-  app.use('/docs', express.static(docsDist));
-  app.get('/docs/*', (_req, res) => {
-    res.sendFile(path.join(docsDist, 'index.html'));
-  });
+  if (fs.existsSync(docsDist)) {
+    app.use('/docs', express.static(docsDist));
+    app.get('/docs/*', (_req, res) => {
+      res.sendFile(path.join(docsDist, 'index.html'));
+    });
+  } else {
+    app.get('/docs/*', (_req, res) => {
+      res.status(404).send('Docs not built. Run `npm run docs:build` first.');
+    });
+  }
 
   // Serve built client
   const clientDist = path.resolve(__dirname, '..', '..', 'client', 'dist');
-  app.use(express.static(clientDist));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  } else {
+    app.get('*', (_req, res) => {
+      res.status(503).json({
+        error: 'Client not built',
+        hint: 'In development, open http://localhost:5173. For production, run `cd client && npm run build` first.',
+      });
+    });
+  }
 
   // Socket.IO
   setupSocketHandlers(io, manager);

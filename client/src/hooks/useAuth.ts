@@ -17,10 +17,24 @@ export function useAuth(): AuthState {
       .then(res => {
         if (res.ok) {
           setAuthenticated(true);
-        } else {
+          return;
+        }
+
+        // Local server mode has no auth routes; treat 404 as auth disabled.
+        if (res.status === 404) {
+          setAuthenticated(true);
+          return;
+        }
+
+        if (res.status === 401) {
           setAuthenticated(false);
           navigate('/login');
+          return;
         }
+
+        // Any other non-OK status (e.g. 500) — default deny.
+        setAuthenticated(false);
+        navigate('/login');
       })
       .catch(() => {
         // If check endpoint doesn't exist (local mode), assume authenticated

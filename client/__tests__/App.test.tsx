@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from '../src/App';
 
@@ -36,13 +36,29 @@ vi.mock('../src/pages/Login', () => ({
 }));
 
 describe('App', () => {
-  it('renders navigation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renders navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 404,
+      })),
+    );
+
     render(
       <BrowserRouter>
         <App />
       </BrowserRouter>,
     );
-    expect(screen.getByText('Agent Monitor')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent Monitor')).toBeInTheDocument();
+    });
+
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('New Agent')).toBeInTheDocument();
     expect(screen.getByText('Templates')).toBeInTheDocument();

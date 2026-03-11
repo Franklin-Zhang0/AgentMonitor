@@ -45,4 +45,9 @@ export interface Agent {
   costUsd?: number;
   pid?: number;
   tokenUsage?: { input: number; output: number };
+  projectName?: string;
+  prUrl?: string;
+  mcpServers?: string[];
+  contextWindow?: { used: number; total: number };
+  currentTask?: string;
 }
