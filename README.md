@@ -80,13 +80,13 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 |-----------|---------------|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Pipeline](docs/screenshots/pipeline.png) |
 
-| Create Agent | Templates |
-|--------------|-----------|
-| ![Create Agent](docs/screenshots/create-agent.png) | ![Templates](docs/screenshots/templates.png) |
+| Create Agent | Agent Chat |
+|--------------|------------|
+| ![Create Agent](docs/screenshots/create-agent.png) | ![Agent Chat](docs/screenshots/agent-chat.png) |
 
-| Multi-Language Support |
-|------------------------|
-| ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
+| Templates | Multi-Language Support |
+|-----------|-----------------------|
+| ![Templates](docs/screenshots/templates.png) | ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
 
 ---
 

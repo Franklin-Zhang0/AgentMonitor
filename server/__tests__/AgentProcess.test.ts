@@ -51,7 +51,13 @@ describe('AgentProcess', () => {
     proc.stop();
 
     // Wait for exit event (shell: true adds a wrapper that takes longer to terminate)
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    await new Promise((resolve) => {
+      if (exited) return resolve(undefined);
+      const check = setInterval(() => {
+        if (exited) { clearInterval(check); resolve(undefined); }
+      }, 200);
+      setTimeout(() => { clearInterval(check); resolve(undefined); }, 12000);
+    });
 
     expect(exited).toBe(true);
     expect(proc.isRunning).toBe(false);

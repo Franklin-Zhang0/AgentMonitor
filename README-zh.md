@@ -80,13 +80,13 @@
 |--------|-----------|
 | ![仪表盘](docs/screenshots/dashboard.png) | ![流水线](docs/screenshots/pipeline.png) |
 
-| 创建代理 | 模板 |
-|----------|------|
-| ![创建代理](docs/screenshots/create-agent.png) | ![模板](docs/screenshots/templates.png) |
+| 创建代理 | 代理对话 |
+|----------|----------|
+| ![创建代理](docs/screenshots/create-agent.png) | ![代理对话](docs/screenshots/agent-chat.png) |
 
-| 多语言支持 |
-|------------|
-| ![仪表盘（中文）](docs/screenshots/dashboard-zh.png) |
+| 模板 | 多语言支持 |
+|------|------------|
+| ![模板](docs/screenshots/templates.png) | ![仪表盘（中文）](docs/screenshots/dashboard-zh.png) |
 
 ---
 
