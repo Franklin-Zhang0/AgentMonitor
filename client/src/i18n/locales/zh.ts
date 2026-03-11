@@ -71,6 +71,8 @@ export const zh: Record<string, string> = {
     // Agent Chat
     'chat.editClaudeMd': '编辑 CLAUDE.md',
     'chat.escHint': '按两次 Esc 中断代理',
+    'chat.waitingInput': '代理正在等待您的输入',
+    'chat.inputRequiredPlaceholder': '输入您对代理的回复...',
     'chat.inputPlaceholder': '输入消息或 / 查看命令...',
     'chat.editClaudeMdTitle': '编辑 CLAUDE.md',
     'chat.slashAgents': '列出所有托管代理',

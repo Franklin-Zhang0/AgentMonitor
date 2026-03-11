@@ -35,6 +35,16 @@ export function setupTunnelBridge(
     });
   });
 
+  // Input required → room-targeted notification for permission/choice prompts
+  manager.on('agent:input_required', (agentId: string, inputInfo: unknown) => {
+    tunnel.send({
+      type: 'socket:s2c:room',
+      event: 'agent:input_required',
+      room: `agent:${agentId}`,
+      args: [{ agentId, inputInfo }],
+    });
+  });
+
   // Incremental message delta → room-targeted for efficient chat streaming
   manager.on('agent:delta', (agentId: string, delta: unknown) => {
     tunnel.send({

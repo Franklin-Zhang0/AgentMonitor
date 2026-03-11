@@ -23,8 +23,10 @@ export function AgentChat() {
   const [editingClaudeMd, setEditingClaudeMd] = useState(false);
   const [claudeMdContent, setClaudeMdContent] = useState('');
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
+  const [inputRequired, setInputRequired] = useState<{ prompt: string; choices?: string[] } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -104,18 +106,33 @@ export function AgentChat() {
     const onStatus = (data: { agentId: string; status: string }) => {
       if (data.agentId === id) {
         setAgent(prev => prev ? { ...prev, status: data.status as Agent['status'] } : prev);
+        // Clear input prompt when agent resumes running
+        if (data.status === 'running') {
+          setInputRequired(null);
+        }
+      }
+    };
+
+    // Input required (permission prompts, choices)
+    const onInputRequired = (data: { agentId: string; inputInfo: { prompt: string; choices?: string[] } }) => {
+      if (data.agentId === id) {
+        setInputRequired(data.inputInfo);
+        // Focus the input field
+        setTimeout(() => inputRef.current?.focus(), 100);
       }
     };
 
     socket.on('agent:delta', onDelta);
     socket.on('agent:update', onUpdate);
     socket.on('agent:status', onStatus);
+    socket.on('agent:input_required', onInputRequired);
 
     return () => {
       leaveAgent(id);
       socket.off('agent:delta', onDelta);
       socket.off('agent:update', onUpdate);
       socket.off('agent:status', onStatus);
+      socket.off('agent:input_required', onInputRequired);
     };
   }, [id, fetchAgent]);
 
@@ -433,6 +450,13 @@ export function AgentChat() {
 
     api.sendMessage(id, input.trim());
     setInput('');
+    setInputRequired(null);
+  };
+
+  const handleChoiceSelect = (choice: string) => {
+    if (!id) return;
+    api.sendMessage(id, choice);
+    setInputRequired(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -527,6 +551,47 @@ export function AgentChat() {
 
       <div className="esc-hint">{t('chat.escHint')}</div>
 
+      {/* Input required notification banner */}
+      {(agent.status === 'waiting_input' || inputRequired) && (
+        <div style={{
+          padding: '10px 16px',
+          background: 'var(--yellow, #f59e0b)',
+          color: '#000',
+          borderRadius: 'var(--radius)',
+          margin: '0 0 8px 0',
+          fontSize: 13,
+          fontWeight: 500,
+          animation: 'pulse 2s infinite',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: inputRequired?.choices ? 8 : 0 }}>
+            <span style={{ fontSize: 16 }}>&#9888;</span>
+            <span>{inputRequired?.prompt || t('chat.waitingInput')}</span>
+          </div>
+          {inputRequired?.choices && inputRequired.choices.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {inputRequired.choices.map((choice, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleChoiceSelect(choice)}
+                  style={{
+                    padding: '4px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: '1px solid rgba(0,0,0,0.3)',
+                    background: 'rgba(255,255,255,0.9)',
+                    color: '#000',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {choice}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ position: 'relative' }}>
         {showSlash && filteredCommands.length > 0 && (
           <div className="slash-hints">
@@ -544,10 +609,11 @@ export function AgentChat() {
         )}
         <div className="chat-input-area">
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={t('chat.inputPlaceholder')}
+            placeholder={agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') : t('chat.inputPlaceholder')}
             autoFocus
           />
           <button className="btn" onClick={handleSend}>

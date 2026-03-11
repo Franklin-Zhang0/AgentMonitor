@@ -71,6 +71,8 @@ export const es: Record<string, string> = {
     // Agent Chat
     'chat.editClaudeMd': 'Editar CLAUDE.md',
     'chat.escHint': 'Presiona Esc dos veces para interrumpir el agente',
+    'chat.waitingInput': 'El agente está esperando su entrada',
+    'chat.inputRequiredPlaceholder': 'Escriba su respuesta al agente...',
     'chat.inputPlaceholder': 'Escribe un mensaje o / para ver comandos...',
     'chat.editClaudeMdTitle': 'Editar CLAUDE.md',
     'chat.slashAgents': 'Listar todos los agentes gestionados',

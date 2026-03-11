@@ -16,6 +16,11 @@ export function setupSocketHandlers(io: Server, manager: AgentManager): void {
     io.to(`agent:${agentId}`).emit('agent:delta', { agentId, delta });
   });
 
+  // Input required notification (permission prompts, choices)
+  manager.on('agent:input_required', (agentId: string, inputInfo: unknown) => {
+    io.to(`agent:${agentId}`).emit('agent:input_required', { agentId, inputInfo });
+  });
+
   // Full agent snapshot for real-time streaming (no HTTP re-fetch needed)
   manager.on('agent:update', (agentId: string, agent: unknown) => {
     io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent });

@@ -352,8 +352,37 @@ export class AgentManager extends EventEmitter {
     return text.includes('permission') && text.includes('allow');
   }
 
+  private extractInputPrompt(msg: StreamMessage): { prompt: string; choices?: string[] } {
+    const text = msg.text || msg.item?.text || '';
+    const choices: string[] = [];
+
+    // Claude permission prompts typically offer Yes/No/Always
+    if (msg.subtype === 'permission' || (text.toLowerCase().includes('permission') && text.toLowerCase().includes('allow'))) {
+      choices.push('Yes', 'No', 'Always allow');
+    }
+
+    // Detect numbered choices (1. Option A  2. Option B)
+    const numberedPattern = /^\s*(\d+)[.)]\s+(.+)$/gm;
+    let match;
+    while ((match = numberedPattern.exec(text)) !== null) {
+      choices.push(match[2].trim());
+    }
+
+    // Detect (y/n) style prompts
+    if (/\(y\/n\)/i.test(text)) {
+      if (choices.length === 0) choices.push('Yes', 'No');
+    }
+
+    return { prompt: text, choices: choices.length > 0 ? choices : undefined };
+  }
+
   private handleWaitingInput(agent: Agent, msg: StreamMessage): void {
     this.updateAgentStatus(agent.id, 'waiting_input');
+
+    // Extract prompt and choices for the web UI
+    const inputInfo = this.extractInputPrompt(msg);
+    this.emit('agent:input_required', agent.id, inputInfo);
+
     const notificationMessage = `Agent is waiting for permission/input.\nLast message: ${msg.text || msg.item?.text || JSON.stringify(msg)}`;
     if (agent.config.adminEmail) {
       this.emailNotifier.notifyHumanNeeded(
