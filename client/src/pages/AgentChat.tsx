@@ -24,6 +24,7 @@ export function AgentChat() {
   const [claudeMdContent, setClaudeMdContent] = useState('');
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
   const [inputRequired, setInputRequired] = useState<{ prompt: string; choices?: string[] } | null>(null);
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -567,11 +568,48 @@ export function AgentChat() {
       </div>
 
       <div className="chat-messages">
-        {agent.messages.map((msg) => (
-          <div key={msg.id} className={`chat-message ${msg.role}`}>
-            {msg.content}
-          </div>
-        ))}
+        {agent.messages.map((msg) => {
+          const isToolMsg = msg.role === 'tool' && (msg.toolInput || msg.toolResult);
+          const isExpanded = expandedTools.has(msg.id);
+          return (
+            <div key={msg.id} className={`chat-message ${msg.role}`}>
+              {isToolMsg ? (
+                <>
+                  <div
+                    className="tool-header"
+                    onClick={() => setExpandedTools(prev => {
+                      const next = new Set(prev);
+                      if (next.has(msg.id)) next.delete(msg.id);
+                      else next.add(msg.id);
+                      return next;
+                    })}
+                  >
+                    <span className="tool-toggle">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                    <span className="tool-name">{msg.toolName || msg.content}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="tool-details">
+                      {msg.toolInput && (
+                        <div className="tool-section">
+                          <div className="tool-section-label">Input</div>
+                          <pre className="tool-content">{msg.toolInput}</pre>
+                        </div>
+                      )}
+                      {msg.toolResult && (
+                        <div className="tool-section">
+                          <div className="tool-section-label">Output</div>
+                          <pre className="tool-content">{msg.toolResult}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                msg.content
+              )}
+            </div>
+          );
+        })}
         {localMessages.map((msg) => (
           <div key={msg.id} className={`chat-message ${msg.role}`}>
             {msg.content}

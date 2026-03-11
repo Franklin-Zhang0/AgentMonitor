@@ -20,8 +20,11 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Git worktree isolation** — Every agent operates in its own branch, preventing conflicts when multiple agents work in the same repository
 
 ### Real-Time Monitoring & Interaction
-- **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay)
+- **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay), with automatic polling fallback
 - **Web terminal** — Full chat interface with 25+ slash commands matching CLI behavior
+- **Session resume** — Send a message to a stopped agent to automatically restart it with `--resume`, continuing the conversation with full history
+- **Clone agent** — Duplicate an existing agent's configuration to quickly create a new one with the same settings
+- **Interactive prompts** — When an agent needs input (permission prompts, choices), the web UI shows notification banners and clickable choice buttons
 - **Cost & token tracking** — Per-agent cost (Claude) and token usage (Codex) displayed in real time
 - **Double-Esc interrupt** — Press Escape twice to send SIGINT to any running agent
 - **Auto-delete expired agents** — Configurable retention period for stopped agents (default 24h, adjustable in Settings)

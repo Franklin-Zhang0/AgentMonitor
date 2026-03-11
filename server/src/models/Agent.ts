@@ -6,6 +6,9 @@ export interface AgentMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   timestamp: number;
+  toolName?: string;
+  toolInput?: string;
+  toolResult?: string;
 }
 
 export interface AgentConfig {

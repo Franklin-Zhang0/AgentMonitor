@@ -179,10 +179,13 @@ export class AgentManager extends EventEmitter {
               timestamp: Date.now(),
             });
           } else if (block.type === 'tool_use') {
+            const inputStr = block.input ? (typeof block.input === 'string' ? block.input : JSON.stringify(block.input, null, 2)) : '';
             agent.messages.push({
               id: uuid(),
               role: 'tool',
               content: `Using tool: ${block.name || 'unknown'}`,
+              toolName: block.name || 'unknown',
+              toolInput: inputStr.length > 5000 ? inputStr.slice(0, 5000) + '\n...(truncated)' : inputStr,
               timestamp: Date.now(),
             });
           }
@@ -211,6 +214,32 @@ export class AgentManager extends EventEmitter {
         });
         agent.lastActivity = Date.now();
         this.store.saveAgent(agent);
+      }
+    }
+
+    // Capture tool results from 'user' type messages (Claude sends tool results as user messages)
+    if (msg.type === 'user') {
+      const userMessage = msg.message as { content?: Array<{ type: string; content?: string; tool_use_id?: string }> } | undefined;
+      const toolResult = msg.tool_use_result as { stdout?: string; stderr?: string } | undefined;
+      if (userMessage?.content) {
+        for (const block of userMessage.content) {
+          if (block.type === 'tool_result') {
+            let resultText = '';
+            if (toolResult?.stdout) resultText = toolResult.stdout;
+            else if (typeof block.content === 'string') resultText = block.content;
+            if (resultText) {
+              // Attach result to the most recent tool message without a result
+              const lastToolMsg = [...agent.messages].reverse().find(m => m.role === 'tool' && !m.toolResult);
+              if (lastToolMsg) {
+                lastToolMsg.toolResult = resultText.length > 10000 ? resultText.slice(0, 10000) + '\n...(truncated)' : resultText;
+                if (toolResult?.stderr) {
+                  lastToolMsg.toolResult += '\n[stderr] ' + toolResult.stderr;
+                }
+                this.store.saveAgent(agent);
+              }
+            }
+          }
+        }
       }
     }
 

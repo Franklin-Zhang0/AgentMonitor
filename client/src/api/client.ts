@@ -40,6 +40,9 @@ export interface Agent {
     role: string;
     content: string;
     timestamp: number;
+    toolName?: string;
+    toolInput?: string;
+    toolResult?: string;
   }>;
   lastActivity: number;
   createdAt: number;
