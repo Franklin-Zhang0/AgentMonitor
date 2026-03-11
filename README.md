@@ -17,7 +17,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 ### Multi-Agent Orchestration
 - **Unified dashboard** — Create, monitor, and manage Claude Code and Codex agents from a single interface
 - **Task pipelines** — Define sequential and parallel task workflows; the built-in Meta Agent Manager automates execution end-to-end
-- **Git worktree isolation** — Every agent operates in its own branch, preventing conflicts when multiple agents work in the same repository
+- **Git worktree isolation** — When the working directory is a git repo, each agent operates in its own worktree branch, preventing conflicts. Non-git directories are used directly with no worktree overhead
 
 ### Real-Time Monitoring & Interaction
 - **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay), with automatic polling fallback
@@ -97,7 +97,7 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 - **Node.js** >= 18
 - **Claude Code CLI** (`claude`) — for Claude agents
 - **Codex CLI** (`codex`) — for Codex agents
-- **Git** — for worktree isolation
+- **Git** — for worktree isolation (optional; non-git directories work without it)
 
 ### Installation
 

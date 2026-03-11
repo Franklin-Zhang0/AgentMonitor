@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
+import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { basename } from 'path';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
@@ -34,18 +35,29 @@ export class AgentManager extends EventEmitter {
     let worktreePath: string | undefined;
     let worktreeBranch: string | undefined;
 
-    // Create git worktree for isolation
-    try {
-      const result = this.worktreeManager.createWorktree(
-        agentConfig.directory,
-        branchName,
-        agentConfig.claudeMd,
-      );
-      worktreePath = result.worktreePath;
-      worktreeBranch = result.branch;
-    } catch (err) {
-      // If worktree creation fails, work directly in the directory
-      console.warn('[AgentManager] Worktree creation failed, using directory directly:', err);
+    // Create git worktree for isolation — only if the directory is already a git repo
+    const isGitRepo = (() => {
+      try {
+        execSync('git rev-parse --git-dir', { cwd: agentConfig.directory, stdio: 'pipe' });
+        return true;
+      } catch { return false; }
+    })();
+
+    if (isGitRepo) {
+      try {
+        const result = this.worktreeManager.createWorktree(
+          agentConfig.directory,
+          branchName,
+          agentConfig.claudeMd,
+        );
+        worktreePath = result.worktreePath;
+        worktreeBranch = result.branch;
+      } catch (err) {
+        console.warn('[AgentManager] Worktree creation failed, using directory directly:', err);
+        worktreePath = agentConfig.directory;
+      }
+    } else {
+      // Not a git repo — work directly in the directory, no worktree needed
       worktreePath = agentConfig.directory;
     }
 

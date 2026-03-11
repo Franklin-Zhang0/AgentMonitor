@@ -13,17 +13,8 @@ export class WorktreeManager {
 
     const worktreePath = path.join(worktreeBase, branchName);
 
-    // Check if a git repo exists
-    try {
-      execSync('git rev-parse --git-dir', { cwd: repoDir, stdio: 'pipe' });
-    } catch {
-      // Init a git repo if none exists
-      execSync('git init', { cwd: repoDir, stdio: 'pipe' });
-      execSync('git commit --allow-empty -m "init"', {
-        cwd: repoDir,
-        stdio: 'pipe',
-      });
-    }
+    // Verify the directory is a git repo (caller should check before calling)
+    execSync('git rev-parse --git-dir', { cwd: repoDir, stdio: 'pipe' });
 
     // Create the worktree
     execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {

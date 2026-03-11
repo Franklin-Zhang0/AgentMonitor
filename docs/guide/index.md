@@ -4,7 +4,7 @@
 
 - Node.js 18+
 - Claude Code CLI (`claude`) or OpenAI Codex CLI (`codex`)
-- Git (for worktree isolation)
+- Git (optional; needed for worktree isolation in git repos)
 
 ## Installation
 
@@ -35,7 +35,7 @@ The server starts on `http://localhost:3456`.
 5. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
 6. Click **Create Agent**
 
-The agent will start in an isolated git worktree and begin executing your prompt.
+If the working directory is a git repo, the agent will start in an isolated worktree branch. Otherwise, it works directly in the target directory.
 
 ## Using the Dashboard
 

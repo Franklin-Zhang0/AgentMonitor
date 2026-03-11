@@ -17,7 +17,7 @@
 ### 多代理编排
 - **统一仪表盘** —— 从单一界面创建、监控和管理 Claude Code 和 Codex 代理
 - **任务流水线** —— 定义顺序和并行任务工作流；内置的 Meta Agent Manager 自动端到端执行
-- **Git Worktree 隔离** —— 每个代理在独立分支中运行，多个代理同时操作同一仓库时不会冲突
+- **Git Worktree 隔离** —— 当工作目录是 git 仓库时，每个代理在独立 worktree 分支中运行，避免冲突；非 git 目录则直接在原目录工作，无需额外开销
 
 ### 实时监控与交互
 - **实时流式输出** —— 通过 WebSocket 实时查看代理输出（本地和中继模式均支持），自动轮询兜底
@@ -97,7 +97,7 @@
 - **Node.js** >= 18
 - **Claude Code CLI**（`claude`）—— 用于 Claude 代理
 - **Codex CLI**（`codex`）—— 用于 Codex 代理
-- **Git** —— 用于 worktree 隔离
+- **Git** —— 用于 worktree 隔离（可选；非 git 目录无需安装）
 
 ### 安装
 
