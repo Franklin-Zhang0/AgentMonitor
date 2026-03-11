@@ -64,7 +64,7 @@ export function CreateAgent() {
         setSkipPermissions(!!f.dangerouslySkipPermissions);
         setFullAuto(!!f.fullAuto);
         setChrome(!!f.chrome);
-        setPermissionMode(f.permissionMode || '');
+        setPermissionMode((f.permissionMode as string) || '');
         setMaxBudgetUsd(f.maxBudgetUsd ? String(f.maxBudgetUsd) : '');
         setAllowedTools((f.allowedTools as string) || '');
         setDisallowedTools((f.disallowedTools as string) || '');

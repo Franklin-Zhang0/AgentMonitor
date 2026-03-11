@@ -54,11 +54,12 @@ function main() {
   setupSocketBridge(io, tunnel);
 
   // Serve built client (deployed alongside relay)
-  const clientDist = path.resolve(__dirname, '..', 'client-dist');
+  // client-dist is at the relay root (parent of relay/ directory)
+  const clientDist = path.resolve(__dirname, '..', '..', 'client-dist');
   app.use(express.static(clientDist));
 
   // Serve built docs if available
-  const docsDist = path.resolve(__dirname, '..', 'docs-dist');
+  const docsDist = path.resolve(__dirname, '..', '..', 'docs-dist');
   app.use('/docs', express.static(docsDist));
   app.get('/docs/*', (_req, res) => {
     const indexPath = path.join(docsDist, 'index.html');
