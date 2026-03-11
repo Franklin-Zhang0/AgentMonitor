@@ -1,5 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
+import { readFileSync } from 'fs';
+import { basename } from 'path';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
 import { AgentProcess, type StreamMessage } from './AgentProcess.js';
@@ -57,6 +59,9 @@ export class AgentManager extends EventEmitter {
       messages: [],
       lastActivity: Date.now(),
       createdAt: Date.now(),
+      projectName: basename(agentConfig.directory),
+      mcpServers: this.parseMcpServers(agentConfig.flags.mcpConfig),
+      currentTask: agentConfig.prompt.length > 120 ? agentConfig.prompt.slice(0, 120) + '...' : agentConfig.prompt,
     };
 
     this.store.saveAgent(agent);
@@ -193,12 +198,56 @@ export class AgentManager extends EventEmitter {
       }
     }
 
+    // Track context window usage from system messages
+    const anyMsg = msg as Record<string, unknown>;
+    if (anyMsg.num_turns !== undefined || anyMsg.session_id !== undefined) {
+      // Claude verbose stream includes context info
+      const contextUsed = (anyMsg.input_tokens_used as number) || 0;
+      const contextTotal = (anyMsg.max_input_tokens as number) || 200000;
+      if (contextUsed > 0) {
+        agent.contextWindow = { used: contextUsed, total: contextTotal };
+        this.store.saveAgent(agent);
+      }
+    }
+
+    // Extract PR URLs from assistant messages
+    if (msg.type === 'assistant') {
+      const message = msg.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+      if (message?.content) {
+        for (const block of message.content) {
+          if (block.type === 'text' && block.text) {
+            const prUrl = this.extractPrUrl(block.text);
+            if (prUrl && !agent.prUrl) {
+              agent.prUrl = prUrl;
+              this.store.saveAgent(agent);
+            }
+          }
+        }
+      }
+      if (msg.text) {
+        const prUrl = this.extractPrUrl(msg.text);
+        if (prUrl && !agent.prUrl) {
+          agent.prUrl = prUrl;
+          this.store.saveAgent(agent);
+        }
+      }
+    }
+
     if (msg.type === 'result') {
       // Cost is at top level with --verbose: total_cost_usd
       const cost = (msg as { total_cost_usd?: number }).total_cost_usd || msg.result?.cost_usd;
       if (cost) {
         agent.costUsd = cost;
       }
+
+      // Extract context window from result
+      const resultMsg = msg as Record<string, unknown>;
+      const inputTokens = (resultMsg.total_input_tokens as number) || (resultMsg.input_tokens_used as number);
+      const maxTokens = (resultMsg.max_input_tokens as number) || 200000;
+      if (inputTokens) {
+        agent.contextWindow = { used: inputTokens, total: maxTokens };
+      }
+
       this.updateAgentStatus(agent.id, 'stopped');
 
       // Claude -p with stream-json doesn't exit after result; kill the process
@@ -259,6 +308,26 @@ export class AgentManager extends EventEmitter {
         this.store.saveAgent(agent);
       }
     }
+  }
+
+  private parseMcpServers(mcpConfigPath?: string): string[] {
+    if (!mcpConfigPath) return [];
+    try {
+      const content = readFileSync(mcpConfigPath, 'utf-8');
+      const config = JSON.parse(content);
+      // MCP config has { mcpServers: { "name": { ... } } } format
+      const servers = config.mcpServers || config;
+      return Object.keys(servers);
+    } catch {
+      return [];
+    }
+  }
+
+  private extractPrUrl(text: string): string | undefined {
+    // Match GitHub/GitLab PR URLs
+    const prPattern = /https?:\/\/(?:github\.com|gitlab\.com)\/[^\s]+\/pull\/\d+/;
+    const match = text.match(prPattern);
+    return match?.[0];
   }
 
   private isClaudePermissionPrompt(msg: StreamMessage): boolean {

@@ -34,6 +34,7 @@ export interface Agent {
     flags: Record<string, unknown>;
   };
   worktreePath?: string;
+  worktreeBranch?: string;
   messages: Array<{
     id: string;
     role: string;
@@ -44,6 +45,11 @@ export interface Agent {
   createdAt: number;
   costUsd?: number;
   tokenUsage?: { input: number; output: number };
+  projectName?: string;
+  prUrl?: string;
+  mcpServers?: string[];
+  contextWindow?: { used: number; total: number };
+  currentTask?: string;
 }
 
 export interface Template {

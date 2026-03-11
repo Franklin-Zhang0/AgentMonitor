@@ -4,14 +4,17 @@ The dashboard provides a real-time overview of all your AI coding agents.
 
 ## Agent Cards
 
-Each agent is displayed as a card showing:
-- **Provider badge**: CLAUDE (purple) or CODEX (green)
+Each agent is displayed as a rich information card showing:
+- **Provider badge**: CLAUDE (orange) or CODEX (green)
 - **Agent name**: Click to enter chat view
 - **Status indicator**: Running (green), Stopped (gray), Error (red), Waiting Input (yellow)
-- **Cost**: Total API cost in USD
-- **Token usage**: Input + output tokens
+- **Project & git branch**: Which repository and branch the agent is working on
+- **Pull Request link**: If the agent created a PR, a direct link is shown (auto-detected from agent output)
+- **Model & context usage**: Which LLM model the session uses and a visual progress bar showing context window consumption
+- **Task description**: A summary of what the agent is currently doing (from the initial prompt)
+- **MCP servers**: Which Model Context Protocol servers are connected to the session (parsed from `--mcp-config`)
+- **Cost**: Total API cost in USD (Claude) or token count (Codex)
 - **Latest message**: Preview of the most recent agent response
-- **Working directory**: Path where the agent operates
 
 ## Actions
 

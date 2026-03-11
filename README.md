@@ -188,7 +188,16 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 ### Dashboard
 
-Agents appear as status cards showing provider, status, latest output, and cost. Click any card to open the full chat interface.
+Each agent is represented by a rich information card displaying:
+- **Project & git branch** — which repository and branch the agent is working on
+- **Pull Request link** — if the agent created a PR, a direct link is shown (auto-detected)
+- **Model & context usage** — which LLM model and a visual bar for context window consumption
+- **Status** — whether the agent is actively working, idle, or waiting for permission
+- **Task description** — a summary of what the agent is currently doing
+- **MCP servers** — connected Model Context Protocol servers (parsed from `--mcp-config`)
+- **Cost / token tracking** — per-agent cost (Claude) or token usage (Codex)
+
+Click any card to open the full chat interface.
 
 ### Agent Chat
 
