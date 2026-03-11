@@ -65,7 +65,13 @@ export function AgentChat() {
     if (!id) return;
     try {
       const data = await api.getAgent(id);
-      setAgent(data);
+      setAgent(prev => {
+        // Don't overwrite optimistic messages (pending-* ids) if server hasn't caught up
+        if (prev && data.messages.length < prev.messages.length) {
+          return { ...prev, status: data.status as Agent['status'], costUsd: data.costUsd, tokenUsage: data.tokenUsage };
+        }
+        return data;
+      });
     } catch {
       navigate('/');
     }
@@ -102,7 +108,13 @@ export function AgentChat() {
     const onUpdate = (data: { agentId: string; agent: Agent }) => {
       if (data.agentId === id && data.agent) {
         socketWorking = true;
-        setAgent(data.agent);
+        // Only apply if server has at least as many messages (avoid overwriting optimistic messages)
+        setAgent(prev => {
+          if (!prev) return data.agent;
+          if (data.agent.messages.length >= prev.messages.length) return data.agent;
+          // Server hasn't caught up with our optimistic message yet — merge status only
+          return { ...prev, status: data.agent.status as Agent['status'], costUsd: data.agent.costUsd, tokenUsage: data.agent.tokenUsage };
+        });
       }
     };
 
@@ -473,15 +485,33 @@ export function AgentChat() {
       }
     }
 
-    api.sendMessage(id, input.trim());
+    const text = input.trim();
+    // Optimistic: show user message immediately
+    setAgent(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        status: 'running' as Agent['status'],
+        messages: [...prev.messages, { id: `pending-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() }],
+      };
+    });
     setInput('');
     setInputRequired(null);
+    api.sendMessage(id, text);
   };
 
   const handleChoiceSelect = (choice: string) => {
     if (!id) return;
-    api.sendMessage(id, choice);
+    setAgent(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        status: 'running' as Agent['status'],
+        messages: [...prev.messages, { id: `pending-${Date.now()}`, role: 'user', content: choice, timestamp: Date.now() }],
+      };
+    });
     setInputRequired(null);
+    api.sendMessage(id, choice);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -615,6 +645,13 @@ export function AgentChat() {
             {msg.content}
           </div>
         ))}
+        {agent.status === 'running' && (
+          <div className="chat-message assistant thinking">
+            <span className="thinking-dots">
+              <span /><span /><span />
+            </span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
