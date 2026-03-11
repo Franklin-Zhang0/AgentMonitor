@@ -223,6 +223,13 @@ export function Dashboard() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/create?from=${agent.id}`); }}
+                  title={t('dashboard.cloneAgent')}
+                >
+                  {t('dashboard.clone')}
+                </button>
                 {(agent.status === 'running' || agent.status === 'waiting_input') && (
                   <button
                     className="btn btn-sm btn-outline"

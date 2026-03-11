@@ -35,6 +35,8 @@ export const zh: Record<string, string> = {
     'dashboard.retentionHours': '自动删除已停止代理（小时后）',
     'dashboard.retentionDisabled': '已禁用（0 = 永久保留）',
     'dashboard.settingsSaved': '设置已保存',
+    'dashboard.clone': '克隆',
+    'dashboard.cloneAgent': '克隆此代理',
 
     // Create Agent
     'create.title': '创建代理',
@@ -67,6 +69,7 @@ export const zh: Record<string, string> = {
     'create.addSuggestion': '添加建议',
     'create.removeSuggestion': '删除建议',
     'create.suggestionPlaceholder': '输入提示建议...',
+    'create.cloneFrom': '克隆自',
 
     // Agent Chat
     'chat.editClaudeMd': '编辑 CLAUDE.md',

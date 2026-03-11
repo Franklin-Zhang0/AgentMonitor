@@ -520,6 +520,13 @@ export function AgentChat() {
           </span>
           <button
             className="btn btn-sm btn-outline"
+            onClick={() => navigate(`/create?from=${id}`)}
+            title={t('dashboard.cloneAgent')}
+          >
+            {t('dashboard.clone')}
+          </button>
+          <button
+            className="btn btn-sm btn-outline"
             onClick={() => {
               setClaudeMdContent(agent.config.claudeMd || '');
               setEditingClaudeMd(true);

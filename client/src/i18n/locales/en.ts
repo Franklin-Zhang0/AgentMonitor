@@ -35,6 +35,8 @@ export const en: Record<string, string> = {
     'dashboard.retentionHours': 'Auto-delete stopped agents after (hours)',
     'dashboard.retentionDisabled': 'Disabled (0 = keep forever)',
     'dashboard.settingsSaved': 'Settings saved',
+    'dashboard.clone': 'Clone',
+    'dashboard.cloneAgent': 'Clone this agent',
 
     // Create Agent
     'create.title': 'Create Agent',
@@ -67,6 +69,7 @@ export const en: Record<string, string> = {
     'create.addSuggestion': 'Add suggestion',
     'create.removeSuggestion': 'Remove suggestion',
     'create.suggestionPlaceholder': 'Type a prompt suggestion...',
+    'create.cloneFrom': 'Clone from',
 
     // Agent Chat
     'chat.editClaudeMd': 'Edit CLAUDE.md',

@@ -35,6 +35,8 @@ export const ja: Record<string, string> = {
     'dashboard.retentionHours': '停止したエージェントを自動削除（時間後）',
     'dashboard.retentionDisabled': '無効（0 = 永久保持）',
     'dashboard.settingsSaved': '設定を保存しました',
+    'dashboard.clone': '複製',
+    'dashboard.cloneAgent': 'このエージェントを複製',
 
     // Create Agent
     'create.title': 'エージェント作成',
@@ -67,6 +69,7 @@ export const ja: Record<string, string> = {
     'create.addSuggestion': '提案を追加',
     'create.removeSuggestion': '提案を削除',
     'create.suggestionPlaceholder': 'プロンプト提案を入力...',
+    'create.cloneFrom': '複製元',
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.mdを編集',
