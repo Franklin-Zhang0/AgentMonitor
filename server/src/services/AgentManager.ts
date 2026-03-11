@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { basename } from 'path';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
@@ -34,6 +34,12 @@ export class AgentManager extends EventEmitter {
 
     let worktreePath: string | undefined;
     let worktreeBranch: string | undefined;
+
+    // Ensure working directory exists (create if needed)
+    if (!existsSync(agentConfig.directory)) {
+      mkdirSync(agentConfig.directory, { recursive: true });
+      console.log(`[AgentManager] Created missing directory: ${agentConfig.directory}`);
+    }
 
     // Create git worktree for isolation — only if the directory is already a git repo
     const isGitRepo = (() => {
@@ -114,8 +120,16 @@ export class AgentManager extends EventEmitter {
       // Don't override 'stopped' status (set when result message is received)
       const current = this.store.getAgent(agent.id);
       if (current && current.status !== 'stopped') {
-        // null exit code (from SIGTERM/SIGKILL) after result is fine; only real errors are non-zero
         const status = (code === 0 || code === null) ? 'stopped' : 'error';
+        if (status === 'error') {
+          current.messages.push({
+            id: uuid(),
+            role: 'system',
+            content: `Agent process exited with code ${code}`,
+            timestamp: Date.now(),
+          });
+          this.store.saveAgent(current);
+        }
         this.updateAgentStatus(agent.id, status);
       }
       this.processes.delete(agent.id);
@@ -123,6 +137,16 @@ export class AgentManager extends EventEmitter {
 
     proc.on('error', (err: Error) => {
       console.error(`[Agent ${agent.id}] process error:`, err);
+      const a = this.store.getAgent(agent.id);
+      if (a) {
+        a.messages.push({
+          id: uuid(),
+          role: 'system',
+          content: `Process error: ${err.message}`,
+          timestamp: Date.now(),
+        });
+        this.store.saveAgent(a);
+      }
       this.updateAgentStatus(agent.id, 'error');
     });
 
