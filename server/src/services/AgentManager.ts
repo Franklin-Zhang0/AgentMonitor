@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
 import { execSync } from 'child_process';
 import { readFileSync, existsSync, mkdirSync } from 'fs';
+import os from 'os';
 import { basename } from 'path';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
@@ -83,6 +84,7 @@ export class AgentManager extends EventEmitter {
     };
 
     this.store.saveAgent(agent);
+    this.store.recordPath(os.hostname(), agentConfig.directory);
     this.startProcess(agent);
 
     return agent;

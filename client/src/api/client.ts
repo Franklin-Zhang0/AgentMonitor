@@ -109,6 +109,7 @@ export interface MetaAgentConfig {
 export interface ServerSettings {
   agentRetentionMs: number;
   promptSuggestions: string[];
+  pathHistory: Record<string, string[]>;
 }
 
 export const api = {
