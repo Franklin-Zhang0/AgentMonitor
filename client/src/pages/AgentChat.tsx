@@ -19,9 +19,10 @@ function toggleTheme() {
 function buildResumeCommand(agent: Agent | null): string | undefined {
   if (!agent) return undefined;
   const provider = agent.config.provider || 'claude';
-  // Only Claude supports --resume
+  // Only Claude supports --resume, and only when agent is running/paused (not stopped)
   if (provider !== 'claude') return undefined;
   if (!agent.sessionId) return undefined;
+  if (agent.status === 'stopped' || agent.status === 'error') return undefined;
 
   // Convert camelCase flag keys to kebab-case for CLI
   const toKebab = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
