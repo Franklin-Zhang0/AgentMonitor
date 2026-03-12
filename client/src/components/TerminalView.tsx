@@ -1,35 +1,32 @@
 import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { getSocket } from '../api/socket';
 
 interface Props {
   agentId: string;
   visible: boolean;
-  /** If provided, auto-run this command when PTY opens (e.g. claude --resume ...) */
-  initialCommand?: string;
+  /** If provided, show this as a hint and pre-fill in shell (e.g. claude --resume ...) */
+  resumeCommand?: string;
 }
 
 /**
  * Lazy-mounted interactive PTY terminal.
  * Only renders xterm after the user first clicks the Terminal button (visible=true).
- * This avoids opening xterm into a 0x0 hidden container.
  */
-export function TerminalView({ agentId, visible, initialCommand }: Props) {
+export function TerminalView({ agentId, visible, resumeCommand }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const openedRef = useRef(false);
   const everVisibleRef = useRef(false);
 
-  // Track whether we've ever been visible (for lazy init)
   if (visible) everVisibleRef.current = true;
 
-  // Initialize xterm + PTY on first visibility
   useEffect(() => {
     if (!everVisibleRef.current || !containerRef.current) return;
-    // Already initialized
     if (termRef.current) return;
 
     const container = containerRef.current;
@@ -67,18 +64,26 @@ export function TerminalView({ agentId, visible, initialCommand }: Props) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(container);
+    term.loadAddon(new CanvasAddon());
     fit.fit();
 
     termRef.current = term;
     fitRef.current = fit;
 
     const socket = getSocket();
-
-    // Ensure we're in the agent room before opening PTY
-    // (child effects run before parent effects, so AgentChat's joinAgent may not have fired yet)
     socket.emit('agent:join', agentId);
 
-    // Register listeners BEFORE opening PTY so we don't miss the initial prompt
+    // Helper to open (or re-open) a PTY
+    const openPty = (withCommand?: string) => {
+      openedRef.current = true;
+      const dims = fit.proposeDimensions();
+      socket.emit('terminal:open', {
+        agentId,
+        cols: dims?.cols || 120,
+        rows: dims?.rows || 30,
+        initialCommand: withCommand,
+      });
+    };
 
     // PTY output → xterm
     const onOutput = (data: { agentId: string; data: string }) => {
@@ -87,11 +92,17 @@ export function TerminalView({ agentId, visible, initialCommand }: Props) {
     };
     socket.on('terminal:output', onOutput);
 
-    // PTY exit
+    // PTY exit → auto-reopen fresh shell
     const onExit = (data: { agentId: string; exitCode: number }) => {
       if (data.agentId !== agentId) return;
-      term.write(`\r\n\x1b[90m[terminal exited with code ${data.exitCode}]\x1b[0m\r\n`);
       openedRef.current = false;
+      // Reset terminal (clears alternate screen buffer artifacts)
+      term.write('\x1b[?1049l'); // switch back to main buffer
+      term.clear();
+      term.write(`\x1b[90m[process exited with code ${data.exitCode}]\x1b[0m\r\n`);
+      term.write('\x1b[90mReopening shell...\x1b[0m\r\n\r\n');
+      // Re-open a fresh PTY (plain shell, no auto-command)
+      setTimeout(() => openPty(), 500);
     };
     socket.on('terminal:exit', onExit);
 
@@ -114,17 +125,8 @@ export function TerminalView({ agentId, visible, initialCommand }: Props) {
 
     term.focus();
 
-    // Open PTY after a short delay to ensure room join is processed server-side
-    openedRef.current = true;
-    setTimeout(() => {
-      const dims = fit.proposeDimensions();
-      socket.emit('terminal:open', {
-        agentId,
-        cols: dims?.cols || 120,
-        rows: dims?.rows || 30,
-        initialCommand,
-      });
-    }, 200);
+    // Open PTY after delay (ensure room join is processed)
+    setTimeout(() => openPty(resumeCommand), 200);
 
     return () => {
       socket.off('terminal:output', onOutput);
@@ -140,9 +142,9 @@ export function TerminalView({ agentId, visible, initialCommand }: Props) {
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [visible, agentId]); // re-run when visible changes (first true triggers init)
+  }, [visible, agentId]);
 
-  // Re-fit and focus when toggling back to visible after init
+  // Re-fit and focus when toggling back to visible
   useEffect(() => {
     if (visible && termRef.current && fitRef.current) {
       requestAnimationFrame(() => {

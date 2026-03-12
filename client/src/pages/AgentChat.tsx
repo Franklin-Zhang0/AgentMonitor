@@ -639,7 +639,7 @@ export function AgentChat() {
         </div>
       </div>
 
-      {id && <TerminalView agentId={id} visible={showTerminal} initialCommand={buildResumeCommand(agent)} />}
+      {id && <TerminalView agentId={id} visible={showTerminal} resumeCommand={buildResumeCommand(agent)} />}
       <div className="chat-messages" style={{ display: showTerminal ? 'none' : undefined }}>
         {agent.messages.map((msg) => {
           const isToolMsg = msg.role === 'tool' && (msg.toolInput || msg.toolResult);
