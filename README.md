@@ -7,8 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Tests](https://img.shields.io/badge/Tests-40%20passing-22c55e?style=for-the-badge)](server/__tests__)
+[![Docs](https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge&logo=vitepress&logoColor=white)](https://ericonaldo.github.io/AgentMonitor/)
 
 A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents in one place. Real-time streaming, task pipelines, and notifications via Email / WhatsApp / Slack — all from your browser.
+
+**[Documentation](https://ericonaldo.github.io/AgentMonitor/)** | **[Quick Start](#quick-start)**
 
 ---
 
