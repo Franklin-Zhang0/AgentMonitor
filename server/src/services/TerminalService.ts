@@ -5,6 +5,7 @@ interface TerminalSession {
   ptyProcess: pty.IPty;
   agentId: string;
   cwd: string;
+  exitDisposable: pty.IDisposable;
 }
 
 export class TerminalService extends EventEmitter {
@@ -16,8 +17,10 @@ export class TerminalService extends EventEmitter {
    */
   create(agentId: string, cwd: string, cols = 120, rows = 30, initialCommand?: string): string {
     // Destroy existing session if alive — a new terminal:open means a fresh PTY is wanted
+    // Dispose exit handler first to avoid triggering the client's "reopen shell" loop
     const existing = this.sessions.get(agentId);
     if (existing) {
+      existing.exitDisposable.dispose();
       existing.ptyProcess.kill();
       this.sessions.delete(agentId);
     }
@@ -40,12 +43,12 @@ export class TerminalService extends EventEmitter {
       this.emit('data', agentId, data);
     });
 
-    ptyProcess.onExit(({ exitCode }) => {
+    const exitDisposable = ptyProcess.onExit(({ exitCode }) => {
       this.sessions.delete(agentId);
       this.emit('exit', agentId, exitCode);
     });
 
-    this.sessions.set(agentId, { ptyProcess, agentId, cwd });
+    this.sessions.set(agentId, { ptyProcess, agentId, cwd, exitDisposable });
 
     // Auto-run initial command (e.g. claude --resume <sessionId>)
     if (initialCommand) {
