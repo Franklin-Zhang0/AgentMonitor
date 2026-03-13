@@ -15,6 +15,23 @@
 
 ---
 
+## 目录
+
+- [核心功能](#核心功能)
+- [演示](#演示)
+- [截图](#截图)
+- [快速开始](#快速开始)
+- [配置](#配置)
+- [使用方法](#使用方法)
+- [API 参考](#api-参考)
+- [远程访问（中继模式）](#远程访问中继模式)
+- [提供者支持](#提供者支持)
+- [测试](#测试)
+- [架构](#架构)
+- [许可证](#许可证)
+
+---
+
 ## 核心功能
 
 ### 多代理编排
@@ -80,9 +97,20 @@
 
 ## 演示
 
-![Agent Monitor 演示](docs/screenshots/demo.gif)
+### 快速开始 — 使用模板创建代理
+![快速开始演示](docs/screenshots/demo-quickstart.gif)
 
-*完整工作流：创建带 CLAUDE.md 模板的代理 → 完成任务 → 交互式对话 → PTY 终端 → 克隆代理 → 任务流水线*
+*使用 CLAUDE.md 模板创建代理 → 代理自主运行 → 任务完成*
+
+### 对话 & 终端
+![对话与终端演示](docs/screenshots/demo-chat-terminal.gif)
+
+*交互式对话 → 代理调用工具执行任务 → PTY 终端 → 克隆代理*
+
+### 任务流水线
+![流水线演示](docs/screenshots/demo-pipeline.gif)
+
+*代理管理器：添加任务 → 启动管理器 → 观察代理顺序执行*
 
 ---
 
@@ -205,6 +233,8 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 7. 输入 **管理员邮箱**、**WhatsApp 手机号** 和/或 **Slack Webhook URL** 用于通知
 8. 点击 **创建代理**
 
+**提示 —— 克隆现有代理：** 点击任意代理卡片上的 **克隆** 按钮，即可创建一个预填了相同目录、提供者、参数和 CLAUDE.md 的新代理。配合模板可打造可复用的代理库：创建一个包含标准指令的模板 → 使用该模板创建一个代理 → 每次需要新实例时克隆即可。
+
 ### 仪表盘
 
 每个代理以丰富信息卡片形式显示，包含：
@@ -304,6 +334,12 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 | `agent:status` | 服务端 → 客户端 | 状态变更 |
 | `task:update` | 服务端 → 客户端 | 流水线任务更新 |
 | `pipeline:complete` | 服务端 → 客户端 | 流水线完成 |
+| `terminal:open` | 客户端 → 服务端 | 在代理目录中打开 PTY 终端 |
+| `terminal:input` | 客户端 → 服务端 | 向 PTY 发送按键输入 |
+| `terminal:resize` | 客户端 → 服务端 | 调整 PTY 尺寸 |
+| `terminal:close` | 客户端 → 服务端 | 关闭 PTY 会话 |
+| `terminal:output` | 服务端 → 客户端 | PTY 输出数据 |
+| `terminal:exit` | 服务端 → 客户端 | PTY 进程退出 |
 | `meta:status` | 服务端 → 客户端 | Meta Agent 状态 |
 
 ---
@@ -364,6 +400,7 @@ AgentMonitor/
         MetaAgentManager.ts # 流水线编排
         TunnelClient.ts     # 到中继服务器的出站隧道
         tunnelBridge.ts     # 隧道事件桥接
+        TerminalService.ts  # PTY 终端管理（node-pty）
         WorktreeManager.ts  # Git worktree 操作
         EmailNotifier.ts    # SMTP 邮件通知
         WhatsAppNotifier.ts # Twilio WhatsApp 通知

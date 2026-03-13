@@ -15,6 +15,23 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 
 ---
 
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Demo](#demo)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Remote Access (Relay Mode)](#remote-access-relay-mode)
+- [Provider Support](#provider-support)
+- [Testing](#testing)
+- [Architecture](#architecture)
+- [License](#license)
+
+---
+
 ## Key Features
 
 ### Multi-Agent Orchestration
@@ -80,9 +97,20 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 
 ## Demo
 
-![Agent Monitor Demo](docs/screenshots/demo.gif)
+### Quick Start — Create Agent with Template
+![Quick Start Demo](docs/screenshots/demo-quickstart.gif)
 
-*Full workflow: create agent with CLAUDE.md template → complete task → interactive chat → PTY terminal → clone agent → task pipeline*
+*Create agent with CLAUDE.md template → agent runs autonomously → task completes*
+
+### Chat & Terminal
+![Chat & Terminal Demo](docs/screenshots/demo-chat-terminal.gif)
+
+*Interactive chat → agent responds with tool calls → PTY terminal → clone agent*
+
+### Task Pipeline
+![Pipeline Demo](docs/screenshots/demo-pipeline.gif)
+
+*Agent Manager: add tasks → start manager → watch agents run sequentially*
 
 ---
 
