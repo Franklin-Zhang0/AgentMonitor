@@ -87,6 +87,9 @@ export class AgentManager extends EventEmitter {
     this.store.recordPath(os.hostname(), agentConfig.directory);
     this.startProcess(agent);
 
+    // Notify dashboard of newly created agent immediately
+    this.emit('agent:update', agent.id, agent);
+
     return agent;
   }
 
@@ -585,6 +588,7 @@ export class AgentManager extends EventEmitter {
       }
     }
     this.store.deleteAgent(agentId);
+    this.emit('agent:status', agentId, 'deleted');
   }
 
   async stopAllAgents(): Promise<void> {
