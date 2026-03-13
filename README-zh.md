@@ -78,6 +78,14 @@
 
 ---
 
+## 演示
+
+![Agent Monitor 演示](docs/screenshots/demo.gif)
+
+*完整工作流：创建带 CLAUDE.md 模板的代理 → 完成任务 → 交互式对话 → PTY 终端 → 克隆代理 → 任务流水线*
+
+---
+
 ## 截图
 
 | 仪表盘 | 任务流水线 |

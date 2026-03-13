@@ -78,6 +78,14 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 
 ---
 
+## Demo
+
+![Agent Monitor Demo](docs/screenshots/demo.gif)
+
+*Full workflow: create agent with CLAUDE.md template → complete task → interactive chat → PTY terminal → clone agent → task pipeline*
+
+---
+
 ## Screenshots
 
 | Dashboard | Task Pipeline |
