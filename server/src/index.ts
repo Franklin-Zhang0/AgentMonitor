@@ -21,6 +21,7 @@ import { setupSocketHandlers } from './socket/handlers.js';
 import { TunnelClient } from './services/TunnelClient.js';
 import { setupTunnelBridge } from './services/tunnelBridge.js';
 import { TerminalService } from './services/TerminalService.js';
+import { FeishuService } from './services/FeishuService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -113,6 +114,20 @@ export function createApp() {
     }
   }, 60_000);
 
+  // Feishu bot (optional - only when FEISHU_APP_ID is set)
+  let feishuService: FeishuService | null = null;
+  if (config.feishu.appId && config.feishu.appSecret) {
+    feishuService = new FeishuService({
+      appId: config.feishu.appId,
+      appSecret: config.feishu.appSecret,
+      allowedUsers: config.feishu.allowedUsers,
+    }, manager);
+    feishuService.start().catch(err =>
+      console.error('[Feishu] Failed to start:', err),
+    );
+    console.log('[Server] Feishu bot starting...');
+  }
+
   // Tunnel to relay server (optional - only when RELAY_URL is set)
   let tunnelClient: TunnelClient | null = null;
   if (config.relay.url && config.relay.token) {
@@ -122,7 +137,7 @@ export function createApp() {
     console.log(`[Server] Tunnel client connecting to ${config.relay.url}`);
   }
 
-  return { app, httpServer, io, store, manager, metaAgent, cleanupInterval, tunnelClient };
+  return { app, httpServer, io, store, manager, metaAgent, cleanupInterval, tunnelClient, feishuService };
 }
 
 // Only start server if this is the main module

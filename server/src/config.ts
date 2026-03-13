@@ -30,4 +30,12 @@ export const config = {
     /** Shared secret token for tunnel authentication */
     token: process.env.RELAY_TOKEN || '',
   },
+  feishu: {
+    appId: process.env.FEISHU_APP_ID || '',
+    appSecret: process.env.FEISHU_APP_SECRET || '',
+    /** Comma-separated list of allowed open_ids; empty = allow all */
+    allowedUsers: process.env.FEISHU_ALLOWED_USERS
+      ? process.env.FEISHU_ALLOWED_USERS.split(',').map(s => s.trim()).filter(Boolean)
+      : [],
+  },
 };

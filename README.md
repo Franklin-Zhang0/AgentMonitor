@@ -25,6 +25,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - [Usage](#usage)
 - [API Reference](#api-reference)
 - [Remote Access (Relay Mode)](#remote-access-relay-mode)
+- [Feishu (Lark) Bot Integration](#feishu-lark-bot-integration)
 - [Provider Support](#provider-support)
 - [Testing](#testing)
 - [Architecture](#architecture)
@@ -74,6 +75,9 @@ Notifications are triggered when:
 All channels can be enabled simultaneously — configure an admin email, WhatsApp phone number, and/or Slack webhook per agent or globally for the Agent Manager.
 
 > See the [Notifications Guide](docs/guide/notifications.md) for detailed setup instructions.
+
+### Feishu (Lark) Bot
+Chat with your agents directly in Feishu. The bot connects via WebSocket — no public URL required — and displays live, updateable agent cards with clickable choice buttons for permission prompts.
 
 ### Remote Access via Relay Server
 - **Access from anywhere** — Manage agents from your phone, laptop, or any device through a public relay server
@@ -367,6 +371,49 @@ Phone/Laptop → HTTP → Public Server (Relay :3457) ← WS tunnel ← Local Ma
 3. **Open the dashboard** from any device at `http://your-server:3457` — log in with your password
 
 The relay supports **password-based login** via `RELAY_PASSWORD` to protect the dashboard from unauthorized access. Sessions use JWT tokens with 24-hour expiry. The tunnel auto-reconnects if the connection drops. When `RELAY_URL` is not set, the server runs in local-only mode with no relay overhead.
+
+---
+
+## Feishu (Lark) Bot Integration
+
+Use Feishu (Lark) as an interactive bot interface alongside the web dashboard and terminals. The bot uses Feishu's **WebSocket long-connection** — no public URL needed on your agent machine.
+
+### Features
+
+- **Live agent cards** — Agent status, messages, cost, and branch are displayed as updateable interactive Feishu cards (auto-refreshed on every change, debounced to respect rate limits)
+- **Choice buttons** — When an agent waits for human input, permission prompts and choices appear as clickable card buttons
+- **Commands** — `/list`, `/attach`, `/detach`, `/stop`, `/status`, `/help`
+- **Access control** — Restrict bot access to specific Feishu `open_id`s via `FEISHU_ALLOWED_USERS`
+- **Persistent bindings** — Chat-to-agent bindings survive server restarts (stored in `data/feishu_bindings.json`)
+
+### Setup
+
+1. Create a Feishu bot at [Feishu Open Platform](https://open.feishu.cn/app)
+2. Enable permissions: **Receive messages** (`im:message.receive_v1`) and **Send messages** (`im:message:create`)
+3. Enable **WebSocket long-connection** event subscription
+4. Enable **Interactive card** support
+5. Set environment variables:
+
+```bash
+FEISHU_APP_ID=cli_xxxxxxxxxxxxxxxx
+FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
+
+# Optional: restrict to specific users (comma-separated open_ids)
+FEISHU_ALLOWED_USERS=ou_xxxx,ou_yyyy
+```
+
+### Usage
+
+| Command | Description |
+|---------|-------------|
+| `/list` | List all agents with status and a "Connect" button |
+| `/attach <name or ID>` | Bind this chat to an agent (shows live card) |
+| `/detach` | Unbind from the current agent |
+| `/stop` | Stop the currently bound agent |
+| `/status` | Refresh the current agent's status card |
+| `/help` | Show this help |
+
+Once attached, send free text to forward it directly to the agent. When the agent is waiting for input, click a choice button or type a reply.
 
 ---
 
