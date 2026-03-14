@@ -140,7 +140,7 @@ export class TunnelClient {
     try {
       const fetchOptions: RequestInit = {
         method: req.method,
-        headers: req.headers,
+        headers: { ...req.headers, 'x-tunnel-auth': this.token },
       };
       if (req.body !== null && req.method !== 'GET' && req.method !== 'HEAD') {
         fetchOptions.body = req.body;

@@ -13,7 +13,7 @@ export function useAuth(): AuthState {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/auth/check')
+    fetch('/api/auth/check', { credentials: 'include' })
       .then(res => {
         if (res.ok) {
           setAuthenticated(true);
@@ -44,7 +44,7 @@ export function useAuth(): AuthState {
   }, [navigate]);
 
   const logout = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     setAuthenticated(false);
     navigate('/login');
   }, [navigate]);
