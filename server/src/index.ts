@@ -1,11 +1,13 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { config } from './config.js';
+import { createAuthRoutes, requireAuth } from './auth.js';
 import { AgentStore } from './store/AgentStore.js';
 import { AgentManager } from './services/AgentManager.js';
 import { MetaAgentManager } from './services/MetaAgentManager.js';
@@ -33,8 +35,15 @@ export function createApp() {
     cors: { origin: '*' },
   });
 
-  app.use(cors());
+  app.use(cors({ credentials: true, origin: true }));
+  app.use(cookieParser());
   app.use(express.json());
+
+  // Auth routes (before requireAuth middleware)
+  app.use('/api/auth', createAuthRoutes());
+
+  // Protect all /api routes when DASHBOARD_PASSWORD is set
+  app.use('/api', requireAuth);
 
   const store = new AgentStore();
   const emailNotifier = new EmailNotifier();
@@ -81,7 +90,7 @@ export function createApp() {
     });
   } else {
     app.get('*', (_req, res) => {
-      res.status(503).json({
+      res.status(404).json({
         error: 'Client not built',
         hint: 'In development, open http://localhost:5173. For production, run `cd client && npm run build` first.',
       });

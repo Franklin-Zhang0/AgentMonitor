@@ -1,7 +1,12 @@
+// @ts-ignore - default import works at runtime with tsx
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env from project root
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 export const config = {
   port: parseInt(process.env.PORT || '3456', 10),
@@ -30,6 +35,8 @@ export const config = {
     /** Shared secret token for tunnel authentication */
     token: process.env.RELAY_TOKEN || '',
   },
+  /** Password for dashboard login (if empty, auth is disabled) */
+  password: process.env.DASHBOARD_PASSWORD || '',
   feishu: {
     appId: process.env.FEISHU_APP_ID || '',
     appSecret: process.env.FEISHU_APP_SECRET || '',
