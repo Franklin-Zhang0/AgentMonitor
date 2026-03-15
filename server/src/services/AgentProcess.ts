@@ -98,9 +98,13 @@ export class AgentProcess extends EventEmitter {
 
     this._pid = this.process.pid;
 
-    // Close stdin immediately - Claude -p waits for stdin EOF before starting
-    // when stdin is a pipe. The prompt is passed via -p flag on the command line.
-    this.process.stdin?.end();
+    // With --input-format stream-json, Claude waits for user messages on stdin.
+    // Send the initial prompt immediately so processing starts right away.
+    // stdin stays open so permission responses and follow-ups can be delivered.
+    if (opts.provider !== 'codex' && this.process.stdin?.writable) {
+      const msg = JSON.stringify({ type: 'user', message: { role: 'user', content: opts.prompt } });
+      this.process.stdin.write(msg + '\n');
+    }
 
     this.process.stdout?.on('data', (data: Buffer) => {
       this.buffer += data.toString();
@@ -133,10 +137,12 @@ export class AgentProcess extends EventEmitter {
   }
 
   private buildClaudeCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
-    // Shell-escape the prompt since we use shell: true for spawning
+    // --input-format stream-json: stdin stays open so permission approvals and
+    // follow-up messages can be sent after the initial prompt.
+    // The initial prompt is written to stdin immediately after process start.
     const args: string[] = [
-      '-p', shellEscape(opts.prompt),
       '--output-format', 'stream-json',
+      '--input-format', 'stream-json',
       '--verbose',
     ];
 
@@ -231,19 +237,10 @@ export class AgentProcess extends EventEmitter {
   }
 
   sendMessage(text: string): void {
-    // Note: stdin is closed in -p mode. Messages can only be sent in interactive mode.
     if (this.process?.stdin?.writable) {
-      if (this._provider === 'claude') {
-        const msg = JSON.stringify({
-          type: 'user_message',
-          content: text,
-        });
-        this.process.stdin.write(msg + '\n');
-      } else {
-        // Codex exec doesn't support stdin interaction
-        // but we write anyway in case future versions do
-        this.process.stdin.write(text + '\n');
-      }
+      // Claude --input-format stream-json format
+      const msg = JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
+      this.process.stdin.write(msg + '\n');
     }
   }
 

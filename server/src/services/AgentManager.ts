@@ -353,7 +353,8 @@ export class AgentManager extends EventEmitter {
 
       this.updateAgentStatus(agent.id, 'stopped');
 
-      // Claude -p with stream-json doesn't exit after result; kill the process
+      // In interactive stdin mode, Claude waits for more input after result;
+      // kill the process so the agent is truly stopped.
       const proc = this.processes.get(agent.id);
       if (proc) {
         proc.stop();
@@ -433,14 +434,28 @@ export class AgentManager extends EventEmitter {
     return match?.[0];
   }
 
+  private getMsgText(msg: StreamMessage): string {
+    if (msg.text) return msg.text as string;
+    if (msg.item?.text) return msg.item.text;
+    // Extract from stream-json message.content blocks
+    const message = msg.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+    if (message?.content) {
+      return message.content
+        .filter(b => b.type === 'text' && b.text)
+        .map(b => b.text!)
+        .join('\n');
+    }
+    return '';
+  }
+
   private isClaudePermissionPrompt(msg: StreamMessage): boolean {
     if (msg.type === 'assistant' && msg.subtype === 'permission') return true;
-    const text = (msg.text || '').toLowerCase();
+    const text = this.getMsgText(msg).toLowerCase();
     return text.includes('permission') && text.includes('allow');
   }
 
   private extractInputPrompt(msg: StreamMessage): { prompt: string; choices?: string[] } {
-    const text = msg.text || msg.item?.text || '';
+    const text = this.getMsgText(msg) || msg.item?.text || '';
     const choices: string[] = [];
 
     // Claude permission prompts typically offer Yes/No/Always
@@ -540,7 +555,10 @@ export class AgentManager extends EventEmitter {
 
     const proc = this.processes.get(agentId);
     if (proc) {
-      // Agent is running — send message to existing process
+      // Agent is running (or waiting_input) — send message to existing process
+      if (agent.status === 'waiting_input') {
+        this.updateAgentStatus(agentId, 'running');
+      }
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
