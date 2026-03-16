@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type Agent, type AgentProvider } from '../api/client';
+import { api, type Agent, type AgentProvider, type InstalledSkill } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
 
@@ -44,6 +44,7 @@ export function AgentChat() {
   const [editingPermissions, setEditingPermissions] = useState(false);
   const [claudeMdContent, setClaudeMdContent] = useState('');
   const [permissionMode, setPermissionMode] = useState('default');
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [inputRequired, setInputRequired] = useState<{ prompt: string; choices?: string[] } | null>(null);
@@ -89,6 +90,18 @@ export function AgentChat() {
     { cmd: '/todos', desc: t('chat.slashTodos') },
     { cmd: '/usage', desc: t('chat.slashUsage') },
   ];
+  const skillCommands = installedSkills.map((skill) => ({
+    cmd: skill.command,
+    desc: skill.description,
+    type: 'skill' as const,
+  }));
+  const builtInCommands = slashCommands.map((command) => ({
+    ...command,
+    type: 'builtin' as const,
+  }));
+  const allSlashCommands = [...builtInCommands, ...skillCommands].sort((a, b) =>
+    a.cmd.localeCompare(b.cmd),
+  );
 
   const fetchAgent = useCallback(async () => {
     if (!id) return;
@@ -175,6 +188,32 @@ export function AgentChat() {
   }, [id, fetchAgent]);
 
   useEffect(() => {
+    const provider = agent?.config.provider;
+    if (!provider) {
+      setInstalledSkills([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    api.getSkills(provider)
+      .then((skills) => {
+        if (!cancelled) {
+          setInstalledSkills(skills);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInstalledSkills([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agent?.config.provider]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agent?.messages?.length]);
 
@@ -210,6 +249,16 @@ export function AgentChat() {
   };
 
   const handleSlashSelect = (cmd: string) => {
+    const selectedCommand = allSlashCommands.find((command) => command.cmd === cmd);
+    if (selectedCommand?.type === 'skill') {
+      setInput(`${cmd} `);
+      setShowSlash(false);
+      setSlashFilter('');
+      setSelectedHint(0);
+      setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
+
     setShowSlash(false);
     setInput('');
 
@@ -292,8 +341,13 @@ export function AgentChat() {
         }
         break;
       case '/skills': {
-        const skills = slashCommands.map(c => `${c.cmd} - ${c.desc}`);
-        addLocalMessage(t('chat.availableSkills') + '\n\n' + skills.join('\n'));
+        const builtIns = slashCommands.map((command) => `${command.cmd} - ${command.desc}`);
+        const installed = installedSkills.length > 0
+          ? installedSkills.map((skill) => `${skill.command} - ${skill.description}`)
+          : ['(none found)'];
+        addLocalMessage(
+          `${t('chat.availableSkills')}\n\nBuilt-in commands:\n${builtIns.join('\n')}\n\nInstalled skills:\n${installed.join('\n')}`,
+        );
         break;
       }
       case '/stats':
@@ -472,7 +526,7 @@ export function AgentChat() {
       const cmdName = parts[0];
       const args = parts.slice(1).join(' ');
 
-      const cmd = slashCommands.find((c) => c.cmd === cmdName);
+      const cmd = builtInCommands.find((c) => c.cmd === cmdName);
       if (cmd) {
         // For /compact with args, send as message to agent
         if (cmdName === '/compact' && args) {
@@ -499,7 +553,7 @@ export function AgentChat() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showSlash) {
-      const filtered = slashCommands.filter((c) =>
+      const filtered = allSlashCommands.filter((c) =>
         c.cmd.startsWith(slashFilter),
       );
       if (e.key === 'ArrowDown') {
@@ -577,7 +631,7 @@ export function AgentChat() {
     fetchAgent();
   };
 
-  const filteredCommands = slashCommands.filter((c) =>
+  const filteredCommands = allSlashCommands.filter((c) =>
     c.cmd.startsWith(slashFilter || '/'),
   );
 

@@ -81,6 +81,13 @@ export interface SessionInfo {
   lastModified: number;
 }
 
+export interface InstalledSkill {
+  name: string;
+  command: string;
+  description: string;
+  source: string;
+}
+
 export interface DirListing {
   path: string;
   parent: string;
@@ -191,6 +198,10 @@ export const api = {
 
   // Sessions
   getSessions: () => request<SessionInfo[]>('/sessions'),
+
+  // Skills
+  getSkills: (provider: AgentProvider) =>
+    request<InstalledSkill[]>(`/skills?provider=${encodeURIComponent(provider)}`),
 
   // Directories
   listDirectory: (path?: string) =>

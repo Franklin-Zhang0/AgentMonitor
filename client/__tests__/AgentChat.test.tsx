@@ -5,6 +5,7 @@ import { AgentChat } from '../src/pages/AgentChat';
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
+  getSkills: vi.fn(),
   sendMessage: vi.fn(),
   rewindAgent: vi.fn(),
   updateAgentPermissions: vi.fn(),
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/api/client', () => ({
   api: {
     getAgent: mocks.getAgent,
+    getSkills: mocks.getSkills,
     sendMessage: mocks.sendMessage,
     rewindAgent: mocks.rewindAgent,
     updateAgentPermissions: mocks.updateAgentPermissions,
@@ -107,6 +109,7 @@ describe('AgentChat permission actions', () => {
       createdAt: 100,
     });
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.getSkills.mockResolvedValue([]);
     mocks.rewindAgent.mockResolvedValue(undefined);
     mocks.updateAgentPermissions.mockResolvedValue(undefined);
     mocks.socket.on.mockReset();
@@ -125,6 +128,7 @@ describe('AgentChat permission actions', () => {
     await waitFor(() => {
       expect(screen.getByText('Permission Required')).toBeInTheDocument();
     });
+    expect(mocks.getSkills).toHaveBeenCalledWith('claude');
 
     fireEvent.click(screen.getByText('Allow'));
     expect(mocks.sendMessage).toHaveBeenCalledWith('agent-1', 'Yes, approve this request.');
@@ -160,6 +164,7 @@ describe('AgentChat permission actions', () => {
     await waitFor(() => {
       expect(screen.getByText('Permissions')).toBeInTheDocument();
     });
+    expect(mocks.getSkills).toHaveBeenCalledWith('codex');
 
     fireEvent.click(screen.getByText('Permissions'));
     fireEvent.change(screen.getByRole('combobox'), {
@@ -214,6 +219,94 @@ describe('AgentChat permission actions', () => {
     expect(screen.getByDisplayValue('second prompt')).toBeInTheDocument();
 
     confirmSpy.mockRestore();
+  });
+
+  it('autocompletes only provider-matched installed skills from the backend list', async () => {
+    mocks.getAgent.mockResolvedValueOnce({
+      id: 'agent-5',
+      name: 'Claude Agent',
+      status: 'stopped',
+      config: {
+        provider: 'claude',
+        directory: '/tmp/project',
+        prompt: 'test',
+        flags: { permissionMode: 'default' },
+      },
+      messages: [],
+      lastActivity: 123,
+      createdAt: 100,
+    });
+    mocks.getSkills.mockResolvedValueOnce([
+      {
+        name: 'paper-figure',
+        command: '/paper-figure',
+        description: 'Generate figures',
+        source: 'claude',
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/agent/agent-5']}>
+        <Routes>
+          <Route path="/agent/:id" element={<AgentChat />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const input = await screen.findByPlaceholderText('Type a message or / for commands...');
+    fireEvent.change(input, { target: { value: '/pa' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('/paper-figure')).toBeInTheDocument();
+    });
+    expect(mocks.getSkills).toHaveBeenCalledWith('claude');
+
+    fireEvent.keyDown(input, { key: 'Tab' });
+
+    expect((input as HTMLInputElement).value).toBe('/paper-figure ');
+    expect(mocks.sendMessage).not.toHaveBeenCalledWith('agent-5', '/paper-figure');
+  });
+
+  it('does not show Claude skills for a Codex agent', async () => {
+    mocks.getAgent.mockResolvedValueOnce({
+      id: 'agent-6',
+      name: 'Codex Agent',
+      status: 'stopped',
+      config: {
+        provider: 'codex',
+        directory: '/tmp/project',
+        prompt: 'test',
+        flags: { permissionMode: 'default' },
+      },
+      messages: [],
+      lastActivity: 123,
+      createdAt: 100,
+    });
+    mocks.getSkills.mockResolvedValueOnce([
+      {
+        name: 'codex-review',
+        command: '/codex-review',
+        description: 'Review changes',
+        source: 'codex',
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/agent/agent-6']}>
+        <Routes>
+          <Route path="/agent/:id" element={<AgentChat />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const input = await screen.findByPlaceholderText('Type a message or / for commands...');
+    fireEvent.change(input, { target: { value: '/co' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('/codex-review')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('/paper-figure')).not.toBeInTheDocument();
+    expect(mocks.getSkills).toHaveBeenCalledWith('codex');
   });
 
   it('shows rewind actions for earlier user turns only', async () => {

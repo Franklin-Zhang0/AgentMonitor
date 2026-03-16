@@ -16,6 +16,7 @@ import { agentRoutes, settingsRoutes } from './routes/agents.js';
 import { templateRoutes } from './routes/templates.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { directoryRoutes } from './routes/directories.js';
+import { skillRoutes } from './routes/skills.js';
 import { taskRoutes } from './routes/tasks.js';
 import { setupSocketHandlers } from './socket/handlers.js';
 import { TunnelClient } from './services/TunnelClient.js';
@@ -45,6 +46,7 @@ export function createApp() {
   app.use('/api/templates', templateRoutes(store));
   app.use('/api/sessions', sessionRoutes());
   app.use('/api/directories', directoryRoutes());
+  app.use('/api/skills', skillRoutes());
   app.use('/api/tasks', taskRoutes(store, metaAgent));
   app.use('/api/settings', settingsRoutes(store));
 
