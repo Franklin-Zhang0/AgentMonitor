@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
+import { api, type AgentProvider, type AgentFlags, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
 import { useTranslation } from '../i18n';
 
 function getPermissionOptions(provider: AgentProvider) {
@@ -21,6 +21,24 @@ function getPermissionOptions(provider: AgentProvider) {
     { value: 'dontAsk', label: 'Do not ask' },
     { value: 'plan', label: 'Plan mode' },
   ];
+}
+
+function getInitialPermissionMode(provider: AgentProvider, flags: AgentFlags): string {
+  if (typeof flags.permissionMode === 'string' && flags.permissionMode) {
+    return flags.permissionMode;
+  }
+
+  if (provider === 'codex') {
+    if (flags.fullAuto) return 'fullAuto';
+    if (flags.dangerouslySkipPermissions) return 'bypassPermissions';
+    return 'default';
+  }
+
+  if (flags.dangerouslySkipPermissions) {
+    return 'bypassPermissions';
+  }
+
+  return 'default';
 }
 
 export function CreateAgent() {
@@ -82,10 +100,8 @@ export function CreateAgent() {
         setWhatsappPhone(source.config.whatsappPhone || '');
         setSlackWebhookUrl(source.config.slackWebhookUrl || '');
         const f = source.config.flags || {};
-        setSkipPermissions(!!f.dangerouslySkipPermissions);
-        setFullAuto(!!f.fullAuto);
         setChrome(!!f.chrome);
-        setPermissionMode((f.permissionMode as string) || '');
+        setPermissionMode(getInitialPermissionMode(source.config.provider, f));
         setMaxBudgetUsd(f.maxBudgetUsd ? String(f.maxBudgetUsd) : '');
         setAllowedTools((f.allowedTools as string) || '');
         setDisallowedTools((f.disallowedTools as string) || '');
