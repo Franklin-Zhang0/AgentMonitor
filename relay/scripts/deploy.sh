@@ -28,7 +28,8 @@ fi
 
 # Get remote home directory
 REMOTE_HOME=$(ssh "$REMOTE" 'echo $HOME')
-REMOTE_DIR="$REMOTE_HOME/agentmonitor-relay"
+APP_ROOT="$REMOTE_HOME/agentmonitor-relay"
+RELAY_DIR="$APP_ROOT/relay"
 
 echo "=== Building client ==="
 cd "$PROJECT_ROOT"
@@ -38,32 +39,36 @@ echo "=== Building relay ==="
 cd "$PROJECT_ROOT/relay"
 npx tsc
 
-echo "=== Deploying to $REMOTE:$REMOTE_DIR ==="
+echo "=== Deploying to $REMOTE:$APP_ROOT ==="
 
-# Create remote directory
-ssh "$REMOTE" "mkdir -p $REMOTE_DIR/client-dist $REMOTE_DIR/dist"
+# Create remote directories.
+# Layout must match relay/src/index.ts:
+#   <app-root>/relay/dist
+#   <app-root>/client-dist
+#   <app-root>/docs-dist
+ssh "$REMOTE" "mkdir -p $APP_ROOT/client-dist $RELAY_DIR/dist"
 
 # Sync relay build output
-rsync -avz --delete "$PROJECT_ROOT/relay/dist/" "$REMOTE:$REMOTE_DIR/dist/"
-rsync -avz "$PROJECT_ROOT/relay/package.json" "$PROJECT_ROOT/relay/package-lock.json" "$REMOTE:$REMOTE_DIR/"
+rsync -avz --delete "$PROJECT_ROOT/relay/dist/" "$REMOTE:$RELAY_DIR/dist/"
+rsync -avz "$PROJECT_ROOT/relay/package.json" "$PROJECT_ROOT/relay/package-lock.json" "$REMOTE:$RELAY_DIR/"
 
 # Sync client build
-rsync -avz --delete "$PROJECT_ROOT/client/dist/" "$REMOTE:$REMOTE_DIR/client-dist/"
+rsync -avz --delete "$PROJECT_ROOT/client/dist/" "$REMOTE:$APP_ROOT/client-dist/"
 
 # Sync docs build if it exists
 if [ -d "$PROJECT_ROOT/docs/.vitepress/dist" ]; then
-  ssh "$REMOTE" "mkdir -p $REMOTE_DIR/docs-dist"
-  rsync -avz --delete "$PROJECT_ROOT/docs/.vitepress/dist/" "$REMOTE:$REMOTE_DIR/docs-dist/"
+  ssh "$REMOTE" "mkdir -p $APP_ROOT/docs-dist"
+  rsync -avz --delete "$PROJECT_ROOT/docs/.vitepress/dist/" "$REMOTE:$APP_ROOT/docs-dist/"
 fi
 
 echo "=== Installing dependencies on remote ==="
-ssh "$REMOTE" "cd $REMOTE_DIR && npm ci --omit=dev 2>&1 | tail -3"
+ssh "$REMOTE" "cd $RELAY_DIR && npm ci --omit=dev 2>&1 | tail -3"
 
 echo "=== Starting relay with pm2 ==="
-ssh "$REMOTE" "export PATH=\$HOME/.npm-global/bin:\$PATH && cd $REMOTE_DIR && \
+ssh "$REMOTE" "export PATH=\$HOME/.npm-global/bin:\$PATH && cd $APP_ROOT && \
   pm2 delete agentmonitor-relay 2>/dev/null || true && \
   RELAY_TOKEN='$RELAY_TOKEN' RELAY_PASSWORD='$RELAY_PASSWORD' RELAY_PORT=3457 \
-  pm2 start dist/index.js --name agentmonitor-relay \
+  pm2 start relay/dist/index.js --name agentmonitor-relay \
     --restart-delay=3000"
 
 echo ""
