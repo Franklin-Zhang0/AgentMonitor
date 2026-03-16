@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
 import { useTranslation } from '../i18n';
 
@@ -26,7 +26,9 @@ function getPermissionOptions(provider: AgentProvider) {
 export function CreateAgent() {
   type EffortLevel = 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
+  const [cloneSource, setCloneSource] = useState<string | null>(null);
   const [provider, setProvider] = useState<AgentProvider>('claude');
   const [name, setName] = useState('');
   const [directory, setDirectory] = useState('');
@@ -65,7 +67,34 @@ export function CreateAgent() {
     api.getTemplates().then(setTemplates).catch(() => {});
     api.getSessions().then(setSessions).catch(() => {});
     api.getSettings().then((s) => setPromptSuggestions(s.promptSuggestions || [])).catch(() => {});
-  }, []);
+
+    // Clone from existing agent
+    const fromId = searchParams.get('from');
+    if (fromId) {
+      api.getAgent(fromId).then((source) => {
+        setCloneSource(source.name);
+        setProvider(source.config.provider);
+        setName(`${source.name} (copy)`);
+        setDirectory(source.config.directory);
+        setPrompt(source.config.prompt);
+        setClaudeMd(source.config.claudeMd || '');
+        setAdminEmail(source.config.adminEmail || '');
+        setWhatsappPhone(source.config.whatsappPhone || '');
+        setSlackWebhookUrl(source.config.slackWebhookUrl || '');
+        const f = source.config.flags || {};
+        setSkipPermissions(!!f.dangerouslySkipPermissions);
+        setFullAuto(!!f.fullAuto);
+        setChrome(!!f.chrome);
+        setPermissionMode((f.permissionMode as string) || '');
+        setMaxBudgetUsd(f.maxBudgetUsd ? String(f.maxBudgetUsd) : '');
+        setAllowedTools((f.allowedTools as string) || '');
+        setDisallowedTools((f.disallowedTools as string) || '');
+        setAddDirs((f.addDirs as string) || '');
+        setMcpConfig((f.mcpConfig as string) || '');
+        setModel((f.model as string) || '');
+      }).catch(() => {});
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const validValues = new Set(getPermissionOptions(provider).map((option) => option.value));
@@ -162,7 +191,9 @@ export function CreateAgent() {
   return (
     <div style={{ maxWidth: 700 }}>
       <div className="page-header">
-        <h1 className="page-title">{t('create.title')}</h1>
+        <h1 className="page-title">
+          {cloneSource ? `${t('create.cloneFrom')} ${cloneSource}` : t('create.title')}
+        </h1>
       </div>
 
       {error && (

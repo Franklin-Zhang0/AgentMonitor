@@ -35,6 +35,8 @@ export const ko: Record<string, string> = {
     'dashboard.retentionHours': '중지된 에이전트 자동 삭제 (시간 후)',
     'dashboard.retentionDisabled': '비활성화 (0 = 영구 보관)',
     'dashboard.settingsSaved': '설정이 저장되었습니다',
+    'dashboard.clone': '복제',
+    'dashboard.cloneAgent': '이 에이전트 복제',
 
     // Create Agent
     'create.title': '에이전트 생성',
@@ -67,6 +69,7 @@ export const ko: Record<string, string> = {
     'create.addSuggestion': '제안 추가',
     'create.removeSuggestion': '제안 삭제',
     'create.suggestionPlaceholder': '프롬프트 제안 입력...',
+    'create.cloneFrom': '복제 원본',
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.md 편집',
