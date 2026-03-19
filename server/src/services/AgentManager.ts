@@ -655,7 +655,12 @@ export class AgentManager extends EventEmitter {
     }
 
     if (agent.status === 'stopped' || agent.status === 'error') {
-      this.resumeAgent(agent, text);
+      if (this.canResumeStoppedSession(agent)) {
+        this.resumeAgent(agent, text);
+      } else {
+        this.updateAgentStatus(agentId, 'running');
+        this.startProcess(agent, this.buildReplayPrompt(agent));
+      }
       this.emit('agent:message', agentId, {
         type: 'user',
         text,
@@ -687,6 +692,13 @@ export class AgentManager extends EventEmitter {
 
     this.updateAgentStatus(agent.id, 'running');
     this.startProcess(agent);
+  }
+
+  private canResumeStoppedSession(agent: Agent): boolean {
+    if (agent.config.provider === 'claude') {
+      return Boolean(agent.sessionId);
+    }
+    return Boolean(agent.config.flags.resume);
   }
 
   private restartAgentWithResume(agentId: string): void {
@@ -768,6 +780,7 @@ export class AgentManager extends EventEmitter {
     // Rewind to just before the selected user turn. The selected message is
     // restored into the chat input on the client for editing/resend.
     agent.messages = agent.messages.slice(0, targetIndex);
+    agent.sessionId = undefined;
     agent.config.flags.resume = undefined;
     agent.status = 'stopped';
     agent.lastActivity = Date.now();

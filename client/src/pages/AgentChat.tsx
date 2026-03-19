@@ -135,13 +135,16 @@ export function AgentChat() {
     a.cmd.localeCompare(b.cmd),
   );
 
+  const hasPendingMessages = (messages: Agent['messages']) =>
+    messages.some((message) => message.id.startsWith('pending-'));
+
   const fetchAgent = useCallback(async () => {
     if (!id) return;
     try {
       const data = await api.getAgent(id);
       setAgent(prev => {
-        // Don't overwrite optimistic messages (pending-* ids) if server hasn't caught up
-        if (prev && data.messages.length < prev.messages.length) {
+        // Preserve optimistic messages only while they are still pending locally.
+        if (prev && data.messages.length < prev.messages.length && hasPendingMessages(prev.messages)) {
           return { ...prev, status: data.status as Agent['status'], costUsd: data.costUsd, tokenUsage: data.tokenUsage };
         }
         return data;
@@ -182,11 +185,13 @@ export function AgentChat() {
     const onUpdate = (data: { agentId: string; agent: Agent }) => {
       if (data.agentId === id && data.agent) {
         socketWorking = true;
-        // Only apply if server has at least as many messages (avoid overwriting optimistic messages)
+        // Only keep the longer local copy while optimistic messages are still pending.
         setAgent(prev => {
           if (!prev) return data.agent;
-          if (data.agent.messages.length >= prev.messages.length) return data.agent;
-          // Server hasn't caught up with our optimistic message yet — merge status only
+          if (data.agent.messages.length >= prev.messages.length || !hasPendingMessages(prev.messages)) {
+            return data.agent;
+          }
+          // Server hasn't caught up with our optimistic message yet — merge status only.
           return { ...prev, status: data.agent.status as Agent['status'], costUsd: data.agent.costUsd, tokenUsage: data.agent.tokenUsage };
         });
       }
@@ -714,7 +719,8 @@ export function AgentChat() {
     await api.rewindAgent(id, messageId);
     setInput(messageContent);
     setShowSlash(false);
-    fetchAgent();
+    setInputRequired(null);
+    await fetchAgent();
   };
 
   const filteredCommands = allSlashCommands.filter((c) =>
