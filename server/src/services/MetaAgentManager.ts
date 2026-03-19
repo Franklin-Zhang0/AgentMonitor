@@ -6,6 +6,7 @@ import type { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import type { SlackNotifier } from './SlackNotifier.js';
 import type { PipelineTask, MetaAgentConfig } from '../models/Task.js';
 import type { AgentProvider } from '../models/Agent.js';
+import { FeishuNotifier } from './FeishuNotifier.js';
 
 const DEFAULT_CLAUDE_MD = `# Agent Manager Instructions
 
@@ -23,6 +24,7 @@ export class MetaAgentManager extends EventEmitter {
   private emailNotifier: EmailNotifier | null;
   private whatsappNotifier: WhatsAppNotifier | null;
   private slackNotifier: SlackNotifier | null;
+  private feishuNotifier: FeishuNotifier | null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
@@ -32,6 +34,7 @@ export class MetaAgentManager extends EventEmitter {
     emailNotifier?: EmailNotifier,
     whatsappNotifier?: WhatsAppNotifier,
     slackNotifier?: SlackNotifier,
+    feishuNotifier?: FeishuNotifier,
   ) {
     super();
     this.store = store;
@@ -39,6 +42,7 @@ export class MetaAgentManager extends EventEmitter {
     this.emailNotifier = emailNotifier || null;
     this.whatsappNotifier = whatsappNotifier || null;
     this.slackNotifier = slackNotifier || null;
+    this.feishuNotifier = feishuNotifier || null;
   }
 
   getConfig(): MetaAgentConfig {
@@ -228,6 +232,9 @@ export class MetaAgentManager extends EventEmitter {
     if (cfg.slackWebhookUrl && this.slackNotifier) {
       await this.slackNotifier.sendNotification(body, cfg.slackWebhookUrl);
     }
+    if (cfg.feishuChatId && this.feishuNotifier) {
+      await this.feishuNotifier.notifyTaskFailed(cfg.feishuChatId, task.name, task.error || 'Unknown error');
+    }
   }
 
   private async notifyStuckAgent(task: PipelineTask, agentName: string, waitingMs: number): Promise<void> {
@@ -245,6 +252,12 @@ export class MetaAgentManager extends EventEmitter {
     if (cfg.slackWebhookUrl && this.slackNotifier) {
       await this.slackNotifier.sendNotification(body, cfg.slackWebhookUrl);
     }
+    if (cfg.feishuChatId && this.feishuNotifier && task.agentId) {
+      const agent = this.agentManager.getAgent(task.agentId);
+      if (agent) {
+        await this.feishuNotifier.notifyStuckAgent(cfg.feishuChatId, agent, waitingMs);
+      }
+    }
   }
 
   private async notifyPipelineComplete(completedCount: number, failedCount: number): Promise<void> {
@@ -261,6 +274,9 @@ export class MetaAgentManager extends EventEmitter {
     }
     if (cfg.slackWebhookUrl && this.slackNotifier) {
       await this.slackNotifier.sendNotification(body, cfg.slackWebhookUrl);
+    }
+    if (cfg.feishuChatId && this.feishuNotifier) {
+      await this.feishuNotifier.notifyPipelineComplete(cfg.feishuChatId, completedCount, failedCount);
     }
   }
 

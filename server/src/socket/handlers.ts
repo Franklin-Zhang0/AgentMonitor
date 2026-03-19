@@ -1,7 +1,8 @@
 import type { Server, Socket } from 'socket.io';
 import type { AgentManager } from '../services/AgentManager.js';
+import type { TerminalService } from '../services/TerminalService.js';
 
-export function setupSocketHandlers(io: Server, manager: AgentManager): void {
+export function setupSocketHandlers(io: Server, manager: AgentManager, terminalService: TerminalService): void {
   // Forward agent events to connected clients
   manager.on('agent:message', (agentId: string, msg: unknown) => {
     io.to(`agent:${agentId}`).emit('agent:message', { agentId, message: msg });
@@ -21,11 +22,25 @@ export function setupSocketHandlers(io: Server, manager: AgentManager): void {
     io.to(`agent:${agentId}`).emit('agent:input_required', { agentId, inputInfo });
   });
 
+  // Raw terminal output for live terminal attachment (from agent process stdout)
+  manager.on('agent:terminal', (agentId: string, chunk: unknown) => {
+    io.to(`agent:${agentId}`).emit('agent:terminal', { agentId, chunk });
+  });
+
   // Full agent snapshot for real-time streaming (no HTTP re-fetch needed)
   manager.on('agent:update', (agentId: string, agent: unknown) => {
     io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent });
     // Also broadcast a lightweight version for Dashboard cards
     io.emit('agent:snapshot', { agentId, agent });
+  });
+
+  // PTY terminal output → client
+  terminalService.on('data', (agentId: string, data: string) => {
+    io.to(`agent:${agentId}`).emit('terminal:output', { agentId, data });
+  });
+
+  terminalService.on('exit', (agentId: string, exitCode: number) => {
+    io.to(`agent:${agentId}`).emit('terminal:exit', { agentId, exitCode });
   });
 
   io.on('connection', (socket: Socket) => {
@@ -46,6 +61,26 @@ export function setupSocketHandlers(io: Server, manager: AgentManager): void {
     // Interrupt agent (double-Esc)
     socket.on('agent:interrupt', (agentId: string) => {
       manager.interruptAgent(agentId);
+    });
+
+    // --- PTY terminal events ---
+    socket.on('terminal:open', ({ agentId, cols, rows, initialCommand }: { agentId: string; cols?: number; rows?: number; initialCommand?: string }) => {
+      const agent = manager.getAgent(agentId);
+      if (!agent) return;
+      const cwd = agent.worktreePath || agent.config.directory;
+      terminalService.create(agentId, cwd, cols || 120, rows || 30, initialCommand);
+    });
+
+    socket.on('terminal:input', ({ agentId, data }: { agentId: string; data: string }) => {
+      terminalService.write(agentId, data);
+    });
+
+    socket.on('terminal:resize', ({ agentId, cols, rows }: { agentId: string; cols: number; rows: number }) => {
+      terminalService.resize(agentId, cols, rows);
+    });
+
+    socket.on('terminal:close', (agentId: string) => {
+      terminalService.destroy(agentId);
     });
   });
 }

@@ -6,6 +6,7 @@ export const fr: Record<string, string> = {
     'nav.newAgent': 'Nouvel Agent',
     'nav.templates': 'Modèles',
     'nav.help': 'Documentation',
+    'nav.theme': 'Changer de thème',
 
     // Common
     'common.loading': 'Chargement...',
@@ -76,6 +77,7 @@ export const fr: Record<string, string> = {
     'chat.escHint': 'Appuyez deux fois sur Échap pour interrompre l\'agent',
     'chat.waitingInput': "L'agent attend votre saisie",
     'chat.inputRequiredPlaceholder': 'Tapez votre réponse à l\'agent...',
+    'chat.resumePlaceholder': 'Tapez un message pour reprendre cette session...',
     'chat.inputPlaceholder': 'Tapez un message ou / pour les commandes...',
     'chat.editClaudeMdTitle': 'Modifier CLAUDE.md',
     'chat.slashAgents': 'Lister tous les agents gérés',

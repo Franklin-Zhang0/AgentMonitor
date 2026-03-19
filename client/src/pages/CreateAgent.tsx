@@ -80,11 +80,16 @@ export function CreateAgent() {
   const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
   const [newSuggestion, setNewSuggestion] = useState('');
   const [showAddSuggestion, setShowAddSuggestion] = useState(false);
+  const [pathHistory, setPathHistory] = useState<Record<string, string[]>>({});
+  const [showPathDropdown, setShowPathDropdown] = useState(false);
 
   useEffect(() => {
     api.getTemplates().then(setTemplates).catch(() => {});
     api.getSessions().then(setSessions).catch(() => {});
-    api.getSettings().then((s) => setPromptSuggestions(s.promptSuggestions || [])).catch(() => {});
+    api.getSettings().then((s) => {
+      setPromptSuggestions(s.promptSuggestions || []);
+      setPathHistory(s.pathHistory || {});
+    }).catch(() => {});
 
     // Clone from existing agent
     const fromId = searchParams.get('from');
@@ -94,7 +99,10 @@ export function CreateAgent() {
         setProvider(source.config.provider);
         setName(`${source.name} (copy)`);
         setDirectory(source.config.directory);
-        setPrompt(source.config.prompt);
+        // Use the first user message as the original creation prompt,
+        // since config.prompt gets overwritten on every resume/follow-up.
+        const firstUserMsg = source.messages?.find((m: { role: string }) => m.role === 'user');
+        setPrompt(firstUserMsg?.content ?? source.config.prompt);
         setClaudeMd(source.config.claudeMd || '');
         setAdminEmail(source.config.adminEmail || '');
         setWhatsappPhone(source.config.whatsappPhone || '');
@@ -245,15 +253,62 @@ export function CreateAgent() {
 
       <div className="form-group">
         <label>{t('create.workingDir')}</label>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
           <input
             value={directory}
-            onChange={(e) => setDirectory(e.target.value)}
+            onChange={(e) => {
+              setDirectory(e.target.value);
+              setShowPathDropdown(true);
+            }}
+            onFocus={() => setShowPathDropdown(true)}
+            onBlur={() => setTimeout(() => setShowPathDropdown(false), 200)}
             placeholder={t('create.workingDirPlaceholder')}
           />
           <button className="btn btn-outline" onClick={() => showDirBrowser ? setShowDirBrowser(false) : browseTo(directory || undefined)}>
             {t('common.browse')}
           </button>
+          {showPathDropdown && (() => {
+            const allPaths = Object.entries(pathHistory).flatMap(([machine, paths]) =>
+              paths.map(p => ({ machine, path: p }))
+            );
+            const filtered = allPaths.filter(item =>
+              !directory || item.path.toLowerCase().includes(directory.toLowerCase())
+            );
+            if (filtered.length === 0) return null;
+            return (
+              <div className="path-dropdown">
+                {Object.entries(
+                  filtered.reduce<Record<string, string[]>>((acc, item) => {
+                    (acc[item.machine] = acc[item.machine] || []).push(item.path);
+                    return acc;
+                  }, {})
+                ).map(([machine, paths]) => (
+                  <div key={machine}>
+                    <div className="path-dropdown-machine">{machine}</div>
+                    {paths.map(p => (
+                      <div
+                        key={p}
+                        className="path-dropdown-item"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setDirectory(p);
+                          setShowPathDropdown(false);
+                          // Check for CLAUDE.md
+                          api.checkClaudeMd(p).then(result => {
+                            if (result.exists && result.content) {
+                              setClaudeMdPrompt({ content: result.content });
+                            }
+                          }).catch(() => {});
+                        }}
+                      >
+                        {p}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

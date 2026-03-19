@@ -1,6 +1,7 @@
 import type { TunnelClient, TunnelMessage } from './TunnelClient.js';
 import type { AgentManager } from './AgentManager.js';
 import type { MetaAgentManager } from './MetaAgentManager.js';
+import type { TerminalService } from './TerminalService.js';
 
 /**
  * Bridges local AgentManager/MetaAgentManager events to the tunnel,
@@ -13,6 +14,7 @@ export function setupTunnelBridge(
   tunnel: TunnelClient,
   manager: AgentManager,
   metaAgent: MetaAgentManager,
+  terminalService?: TerminalService,
 ): void {
   // --- Local → Relay (via tunnel) ---
 
@@ -71,6 +73,37 @@ export function setupTunnelBridge(
     });
   });
 
+  // Raw terminal output for live terminal attachment
+  manager.on('agent:terminal', (agentId: string, chunk: unknown) => {
+    tunnel.send({
+      type: 'socket:s2c:room',
+      event: 'agent:terminal',
+      room: `agent:${agentId}`,
+      args: [{ agentId, chunk }],
+    });
+  });
+
+  // PTY terminal output → room-targeted
+  if (terminalService) {
+    terminalService.on('data', (agentId: string, data: string) => {
+      tunnel.send({
+        type: 'socket:s2c:room',
+        event: 'terminal:output',
+        room: `agent:${agentId}`,
+        args: [{ agentId, data }],
+      });
+    });
+
+    terminalService.on('exit', (agentId: string, exitCode: number) => {
+      tunnel.send({
+        type: 'socket:s2c:room',
+        event: 'terminal:exit',
+        room: `agent:${agentId}`,
+        args: [{ agentId, exitCode }],
+      });
+    });
+  }
+
   // MetaAgent task updates → broadcast
   metaAgent.on('task:update', (task: unknown) => {
     tunnel.send({
@@ -113,6 +146,39 @@ export function setupTunnelBridge(
       case 'agent:interrupt': {
         const agentId = args[0] as string;
         manager.interruptAgent(agentId);
+        break;
+      }
+      // PTY terminal events
+      case 'terminal:open': {
+        if (terminalService) {
+          const d = args[0] as { agentId: string; cols?: number; rows?: number; initialCommand?: string };
+          const agent = manager.getAgent(d.agentId);
+          if (agent) {
+            const cwd = agent.worktreePath || agent.config.directory;
+            terminalService.create(d.agentId, cwd, d.cols || 120, d.rows || 30, d.initialCommand);
+          }
+        }
+        break;
+      }
+      case 'terminal:input': {
+        if (terminalService) {
+          const d = args[0] as { agentId: string; data: string };
+          terminalService.write(d.agentId, d.data);
+        }
+        break;
+      }
+      case 'terminal:resize': {
+        if (terminalService) {
+          const d = args[0] as { agentId: string; cols: number; rows: number };
+          terminalService.resize(d.agentId, d.cols, d.rows);
+        }
+        break;
+      }
+      case 'terminal:close': {
+        if (terminalService) {
+          const agentId = args[0] as string;
+          terminalService.destroy(agentId);
+        }
         break;
       }
       // agent:join/leave are handled on relay side (room management)

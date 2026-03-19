@@ -6,6 +6,7 @@ export const zh: Record<string, string> = {
     'nav.newAgent': '新建代理',
     'nav.templates': '模板',
     'nav.help': '文档',
+    'nav.theme': '切换主题',
 
     // Common
     'common.loading': '加载中...',
@@ -76,6 +77,7 @@ export const zh: Record<string, string> = {
     'chat.escHint': '按两次 Esc 中断代理',
     'chat.waitingInput': '代理正在等待您的输入',
     'chat.inputRequiredPlaceholder': '输入您对代理的回复...',
+    'chat.resumePlaceholder': '输入消息以恢复此会话...',
     'chat.inputPlaceholder': '输入消息或 / 查看命令...',
     'chat.editClaudeMdTitle': '编辑 CLAUDE.md',
     'chat.slashAgents': '列出所有托管代理',

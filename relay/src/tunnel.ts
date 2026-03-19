@@ -148,6 +148,9 @@ export class TunnelManager {
 
       // Forward all other messages (socket:s2c, etc) to handler
       if (this.messageHandler) {
+        if (msg.type === 'socket:s2c' || msg.type === 'socket:s2c:room') {
+          console.log(`[Relay] Forwarding ${msg.type} event: ${msg.event}${msg.room ? ` to room ${msg.room}` : ''}`);
+        }
         this.messageHandler(msg);
       }
     } catch (err) {

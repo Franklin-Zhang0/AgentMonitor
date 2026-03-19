@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { CreateAgent } from './pages/CreateAgent';
@@ -12,6 +12,7 @@ import { LanguageProvider, useTranslation } from './i18n';
 function NavBar({ onLogout }: { onLogout?: () => void }) {
   const location = useLocation();
   const { lang, setLang, t } = useTranslation();
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
 
   return (
     <nav className="nav">
@@ -30,6 +31,19 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
           {t('nav.templates')}
         </Link>
       </div>
+      <button
+        className="theme-toggle"
+        onClick={() => {
+          const next = theme === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('agentmonitor-theme', next);
+          setTheme(next);
+        }}
+        title={t('nav.theme')}
+        style={{ cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', fontSize: 14 }}
+      >
+        {theme === 'light' ? '\u263D' : '\u2600'}
+      </button>
       <a
         href="/docs/"
         target="_blank"

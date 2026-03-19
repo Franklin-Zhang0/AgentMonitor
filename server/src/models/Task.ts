@@ -35,5 +35,6 @@ export interface MetaAgentConfig {
   adminEmail?: string;
   whatsappPhone?: string;
   slackWebhookUrl?: string;
+  feishuChatId?: string;
   stuckTimeoutMs?: number; // How long an agent can be in waiting_input before notification (default 5 min)
 }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api, type Agent, type AgentProvider, type InstalledSkill } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
+import { TerminalView } from '../components/TerminalView';
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -31,6 +32,35 @@ function getPermissionOptions(provider: AgentProvider) {
   ];
 }
 
+/**
+ * Build a `claude --resume <sessionId>` command with the agent's flags
+ * so the PTY terminal auto-launches an interactive Claude session.
+ */
+function buildResumeCommand(agent: Agent | null): string | undefined {
+  if (!agent) return undefined;
+  const provider = agent.config.provider || 'claude';
+  // Only Claude supports --resume, and only when agent is running/paused (not stopped)
+  if (provider !== 'claude') return undefined;
+  if (!agent.sessionId) return undefined;
+  if (agent.status === 'stopped' || agent.status === 'error') return undefined;
+
+  // Convert camelCase flag keys to kebab-case for CLI
+  const toKebab = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+
+  const parts = ['claude', '--resume', agent.sessionId];
+  const flags = agent.config.flags || {};
+  for (const [key, value] of Object.entries(flags)) {
+    if (key === 'resume') continue; // already added
+    const flag = toKebab(key);
+    if (value === true) {
+      parts.push(`--${flag}`);
+    } else if (value !== false && value !== undefined && value !== null && value !== '') {
+      parts.push(`--${flag}`, String(value));
+    }
+  }
+  return parts.join(' ');
+}
+
 export function AgentChat() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -48,6 +78,8 @@ export function AgentChat() {
   const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [inputRequired, setInputRequired] = useState<{ prompt: string; choices?: string[] } | null>(null);
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [showTerminal, setShowTerminal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const instructionFileName = agent?.config.provider === 'codex' ? 'AGENTS.md' : 'CLAUDE.md';
@@ -107,7 +139,13 @@ export function AgentChat() {
     if (!id) return;
     try {
       const data = await api.getAgent(id);
-      setAgent(data);
+      setAgent(prev => {
+        // Don't overwrite optimistic messages (pending-* ids) if server hasn't caught up
+        if (prev && data.messages.length < prev.messages.length) {
+          return { ...prev, status: data.status as Agent['status'], costUsd: data.costUsd, tokenUsage: data.tokenUsage };
+        }
+        return data;
+      });
     } catch {
       navigate('/');
     }
@@ -119,10 +157,12 @@ export function AgentChat() {
 
     joinAgent(id);
     const socket = getSocket();
+    let socketWorking = false;
 
     // Primary: incremental delta (lightweight, only new messages + metadata)
     const onDelta = (data: { agentId: string; delta: { messages: Agent['messages']; status: string; costUsd?: number; tokenUsage?: Agent['tokenUsage']; lastActivity: number } }) => {
       if (data.agentId !== id) return;
+      socketWorking = true;
       setAgent(prev => {
         if (!prev) return prev;
         const existingIds = new Set(prev.messages.map(m => m.id));
@@ -141,13 +181,21 @@ export function AgentChat() {
     // Full snapshot (for status changes, initial load, dashboard sync)
     const onUpdate = (data: { agentId: string; agent: Agent }) => {
       if (data.agentId === id && data.agent) {
-        setAgent(data.agent);
+        socketWorking = true;
+        // Only apply if server has at least as many messages (avoid overwriting optimistic messages)
+        setAgent(prev => {
+          if (!prev) return data.agent;
+          if (data.agent.messages.length >= prev.messages.length) return data.agent;
+          // Server hasn't caught up with our optimistic message yet — merge status only
+          return { ...prev, status: data.agent.status as Agent['status'], costUsd: data.agent.costUsd, tokenUsage: data.agent.tokenUsage };
+        });
       }
     };
 
     // Status change
     const onStatus = (data: { agentId: string; status: string }) => {
       if (data.agentId === id) {
+        socketWorking = true;
         setAgent(prev => prev ? { ...prev, status: data.status as Agent['status'] } : prev);
         // Clear input prompt when agent resumes running
         if (data.status === 'running') {
@@ -159,6 +207,7 @@ export function AgentChat() {
     // Input required (permission prompts, choices)
     const onInputRequired = (data: { agentId: string; inputInfo: { prompt: string; choices?: string[] } }) => {
       if (data.agentId === id) {
+        socketWorking = true;
         setInputRequired(data.inputInfo);
         // Focus the input field
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -170,12 +219,31 @@ export function AgentChat() {
     socket.on('agent:status', onStatus);
     socket.on('agent:input_required', onInputRequired);
 
+    // Re-join room on reconnect (socket.io assigns new socket id after reconnect)
+    const onReconnect = () => {
+      console.log('[AgentChat] Socket reconnected, re-joining room');
+      joinAgent(id);
+      fetchAgent();
+    };
+    socket.on('connect', onReconnect);
+
+    // Polling fallback: if socket events aren't arriving, poll every 3s while agent is running
+    const pollInterval = setInterval(() => {
+      if (!socketWorking) {
+        fetchAgent();
+      }
+      // Reset flag each interval — if no socket events arrive in the next interval, we'll poll again
+      socketWorking = false;
+    }, 3000);
+
     return () => {
       leaveAgent(id);
+      clearInterval(pollInterval);
       socket.off('agent:delta', onDelta);
       socket.off('agent:update', onUpdate);
       socket.off('agent:status', onStatus);
       socket.off('agent:input_required', onInputRequired);
+      socket.off('connect', onReconnect);
     };
   }, [id, fetchAgent]);
 
@@ -540,15 +608,33 @@ export function AgentChat() {
       }
     }
 
-    api.sendMessage(id, input.trim());
+    const text = input.trim();
+    // Optimistic: show user message immediately
+    setAgent(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        status: 'running' as Agent['status'],
+        messages: [...prev.messages, { id: `pending-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() }],
+      };
+    });
     setInput('');
     setInputRequired(null);
+    api.sendMessage(id, text);
   };
 
   const handleChoiceSelect = (choice: string) => {
     if (!id) return;
-    api.sendMessage(id, choice);
+    setAgent(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        status: 'running' as Agent['status'],
+        messages: [...prev.messages, { id: `pending-${Date.now()}`, role: 'user', content: choice, timestamp: Date.now() }],
+      };
+    });
     setInputRequired(null);
+    api.sendMessage(id, choice);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -683,6 +769,18 @@ export function AgentChat() {
           >
             Permissions
           </button>
+          <button
+            className={`btn btn-sm ${showTerminal ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setShowTerminal(prev => !prev)}
+            title="Toggle live terminal"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}>
+              <rect x="1" y="2" width="14" height="11" rx="1.5" />
+              <polyline points="4,7 6,5 4,3" transform="translate(0,2)" />
+              <line x1="7" y1="10" x2="11" y2="10" />
+            </svg>
+            Terminal
+          </button>
           {(agent.status === 'running' || agent.status === 'waiting_input') && (
             <button className="btn btn-sm btn-danger" onClick={() => id && api.stopAgent(id)}>
               {t('common.stop')}
@@ -691,7 +789,12 @@ export function AgentChat() {
         </div>
       </div>
 
-      <div ref={messagesContainerRef} className="chat-messages">
+      {id && <TerminalView agentId={id} visible={showTerminal} resumeCommand={buildResumeCommand(agent)} />}
+      <div
+        ref={messagesContainerRef}
+        className="chat-messages"
+        style={{ display: showTerminal ? 'none' : undefined }}
+      >
         {agent.status === 'waiting_input' && agent.config.provider === 'claude' && (
           <div className="permission-banner">
             <div>
@@ -710,32 +813,76 @@ export function AgentChat() {
             </div>
           </div>
         )}
-        {agent.messages.map((msg) => (
-          <div key={msg.id} className={`chat-message ${msg.role}`}>
-            {msg.role === 'user' && (
-              <button
-                className="message-action"
-                onClick={() => handleRewind(msg.id, msg.content)}
-                type="button"
-              >
-                Rewind here
-              </button>
-            )}
-            {msg.content}
-          </div>
-        ))}
+        {agent.messages.map((msg) => {
+          const isToolMsg = msg.role === 'tool' && (msg.toolInput || msg.toolResult);
+          const isExpanded = expandedTools.has(msg.id);
+          return (
+            <div key={msg.id} className={`chat-message ${msg.role}`}>
+              {msg.role === 'user' && (
+                <button
+                  className="message-action"
+                  onClick={() => handleRewind(msg.id, msg.content)}
+                  type="button"
+                >
+                  Rewind here
+                </button>
+              )}
+              {isToolMsg ? (
+                <>
+                  <div
+                    className="tool-header"
+                    onClick={() => setExpandedTools(prev => {
+                      const next = new Set(prev);
+                      if (next.has(msg.id)) next.delete(msg.id);
+                      else next.add(msg.id);
+                      return next;
+                    })}
+                  >
+                    <span className="tool-toggle">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                    <span className="tool-name">{msg.toolName || msg.content}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="tool-details">
+                      {msg.toolInput && (
+                        <div className="tool-section">
+                          <div className="tool-section-label">Input</div>
+                          <pre className="tool-content">{msg.toolInput}</pre>
+                        </div>
+                      )}
+                      {msg.toolResult && (
+                        <div className="tool-section">
+                          <div className="tool-section-label">Output</div>
+                          <pre className="tool-content">{msg.toolResult}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                msg.content
+              )}
+            </div>
+          );
+        })}
         {localMessages.map((msg) => (
           <div key={msg.id} className={`chat-message ${msg.role}`}>
             {msg.content}
           </div>
         ))}
+        {agent.status === 'running' && (
+          <div className="chat-message assistant thinking">
+            <span className="thinking-dots">
+              <span /><span /><span />
+            </span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="esc-hint">{t('chat.escHint')}</div>
+      {!showTerminal && <div className="esc-hint">{t('chat.escHint')}</div>}
 
       {/* Input required notification banner */}
-      {(agent.status === 'waiting_input' || inputRequired) && (
+      {!showTerminal && (agent.status === 'waiting_input' || inputRequired) && (
         <div style={{
           padding: '10px 16px',
           background: 'var(--yellow, #f59e0b)',
@@ -775,7 +922,7 @@ export function AgentChat() {
         </div>
       )}
 
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', display: showTerminal ? 'none' : undefined }}>
         {showSlash && filteredCommands.length > 0 && (
           <div className="slash-hints">
             {filteredCommands.map((cmd, i) => (
@@ -796,7 +943,11 @@ export function AgentChat() {
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') : t('chat.inputPlaceholder')}
+            placeholder={
+              agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') :
+              (agent.status === 'stopped' || agent.status === 'error') ? t('chat.resumePlaceholder') :
+              t('chat.inputPlaceholder')
+            }
             autoFocus
           />
           <button className="btn" onClick={handleSend}>

@@ -6,6 +6,7 @@ export const ja: Record<string, string> = {
     'nav.newAgent': '新規エージェント',
     'nav.templates': 'テンプレート',
     'nav.help': 'ドキュメント',
+    'nav.theme': 'テーマ切替',
 
     // Common
     'common.loading': '読み込み中...',
@@ -76,6 +77,7 @@ export const ja: Record<string, string> = {
     'chat.escHint': 'Escを2回押してエージェントを中断',
     'chat.waitingInput': 'エージェントが入力を待っています',
     'chat.inputRequiredPlaceholder': 'エージェントへの応答を入力...',
+    'chat.resumePlaceholder': 'メッセージを入力してセッションを再開...',
     'chat.inputPlaceholder': 'メッセージを入力、または / でコマンド一覧...',
     'chat.editClaudeMdTitle': 'CLAUDE.mdを編集',
     'chat.slashAgents': 'すべての管理エージェントを一覧',

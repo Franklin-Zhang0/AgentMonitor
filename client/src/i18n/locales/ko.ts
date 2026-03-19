@@ -6,6 +6,7 @@ export const ko: Record<string, string> = {
     'nav.newAgent': '새 에이전트',
     'nav.templates': '템플릿',
     'nav.help': '문서',
+    'nav.theme': '테마 전환',
 
     // Common
     'common.loading': '로딩 중...',
@@ -76,6 +77,7 @@ export const ko: Record<string, string> = {
     'chat.escHint': 'Esc를 두 번 눌러 에이전트를 중단하세요',
     'chat.waitingInput': '에이전트가 입력을 기다리고 있습니다',
     'chat.inputRequiredPlaceholder': '에이전트에 대한 응답을 입력하세요...',
+    'chat.resumePlaceholder': '메시지를 입력하여 세션을 재개...',
     'chat.inputPlaceholder': '메시지를 입력하거나 /로 명령어 보기...',
     'chat.editClaudeMdTitle': 'CLAUDE.md 편집',
     'chat.slashAgents': '모든 관리 에이전트 목록',

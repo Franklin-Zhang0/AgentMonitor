@@ -85,7 +85,9 @@ Each agent can have custom instructions via CLAUDE.md content. You can:
 
 ## Git Worktree Isolation
 
-Each agent runs in an isolated git worktree to prevent conflicts when multiple agents work in the same repository. Worktrees are created automatically under `.agent-worktrees/` in the target directory.
+When the working directory is a **git repository**, each agent runs in an isolated git worktree (under `.agent-worktrees/`) to prevent conflicts when multiple agents work in the same repo. The worktree is created automatically on a dedicated branch.
+
+If the working directory is **not a git repo**, the agent works directly in the target directory with no worktree created. This avoids unnecessary git initialization and ensures agent changes land in the correct location.
 
 ## Notifications
 

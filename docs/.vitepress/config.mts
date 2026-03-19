@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'Agent Monitor',
   description: 'Web-based monitor for managing AI coding agents',
-  base: '/docs/',
+  base: '/AgentMonitor/',
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },

@@ -3,6 +3,7 @@ const BASE = '/api';
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...opts,
   });
   if (!res.ok) {
@@ -55,6 +56,9 @@ export interface Agent {
     role: string;
     content: string;
     timestamp: number;
+    toolName?: string;
+    toolInput?: string;
+    toolResult?: string;
   }>;
   lastActivity: number;
   createdAt: number;
@@ -65,6 +69,7 @@ export interface Agent {
   mcpServers?: string[];
   contextWindow?: { used: number; total: number };
   currentTask?: string;
+  sessionId?: string;
 }
 
 export interface Template {
@@ -132,6 +137,7 @@ export interface MetaAgentConfig {
 export interface ServerSettings {
   agentRetentionMs: number;
   promptSuggestions: string[];
+  pathHistory: Record<string, string[]>;
 }
 
 export const api = {

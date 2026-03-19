@@ -7,21 +7,52 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Tests](https://img.shields.io/badge/Tests-40%20passing-22c55e?style=for-the-badge)](server/__tests__)
+[![Docs](https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge&logo=vitepress&logoColor=white)](https://ericonaldo.github.io/AgentMonitor/)
 
-**Agent Monitor** is an enterprise-ready web platform for orchestrating, monitoring, and managing AI coding agents at scale. Deploy Claude Code and OpenAI Codex agents from a unified dashboard — with real-time observability, automated task pipelines, and instant notifications via **Email**, **WhatsApp**, and **Slack**.
+A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents in one place. Create agents with a cloneable task template. Real-time streaming, task pipelines, and notifications via Email / WhatsApp / Slack — all from your browser.
+
+**[Documentation](https://ericonaldo.github.io/AgentMonitor/)** | **[Quick Start](#quick-start)**
+
+---
+
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Demo](#demo)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Remote Access (Relay Mode)](#remote-access-relay-mode)
+- [Feishu (Lark) Bot Integration](#feishu-lark-bot-integration)
+- [Provider Support](#provider-support)
+- [Testing](#testing)
+- [Architecture](#architecture)
+- [License](#license)
 
 ---
 
 ## Key Features
 
+### Spin Up Agents Instantly with Cloneable Templates
+- **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, CLAUDE.md) to instantly spin up a new one with the same setup — no re-entering settings
+- **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents
+- **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects an existing CLAUDE.md and offers to load it
+- **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
+
 ### Multi-Agent Orchestration
 - **Unified dashboard** — Create, monitor, and manage Claude Code and Codex agents from a single interface
 - **Task pipelines** — Define sequential and parallel task workflows; the built-in Meta Agent Manager automates execution end-to-end
-- **Git worktree isolation** — Every agent operates in its own branch, preventing conflicts when multiple agents work in the same repository
+- **Git worktree isolation** — When the working directory is a git repo, each agent operates in its own worktree branch, preventing conflicts. Non-git directories are used directly with no worktree overhead
 
 ### Real-Time Monitoring & Interaction
-- **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay)
-- **Web terminal** — Full chat interface with 25+ slash commands matching CLI behavior
+- **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay), with automatic polling fallback
+- **PTY web terminal** — Toggle a fully interactive shell (node-pty + xterm.js) in the agent's working directory — run any command, launch `claude`, or debug directly from the browser
+- **Web chat interface** — Structured chat view with 25+ slash commands matching CLI behavior; both interfaces coexist and you can switch freely
+- **Session resume** — Send a message to a stopped agent to automatically restart it with `--resume`, continuing the conversation with full history
+- **Clone agent** — Duplicate an existing agent's configuration to quickly create a new one with the same settings
+- **Interactive prompts** — When an agent needs input (permission prompts, choices), the web UI shows notification banners and clickable choice buttons
 - **Cost & token tracking** — Per-agent cost (Claude) and token usage (Codex) displayed in real time
 - **Double-Esc interrupt** — Press Escape twice to send SIGINT to any running agent
 - **Auto-delete expired agents** — Configurable retention period for stopped agents (default 24h, adjustable in Settings)
@@ -34,6 +65,7 @@ Stay informed wherever you are. Agent Monitor sends instant notifications when a
 | **Email** | Any SMTP server (Gmail, Outlook, Mailgun, etc.) | Configure `SMTP_*` environment variables |
 | **WhatsApp** | Twilio API | Configure `TWILIO_*` environment variables |
 | **Slack** | Slack Incoming Webhooks | Configure `SLACK_WEBHOOK_URL` or per-agent webhook |
+| **Feishu (Lark)** | Feishu Open Platform (WebSocket bot) | Configure `FEISHU_*` variables — sends **interactive cards with reply buttons** |
 
 Notifications are triggered when:
 - An agent enters `waiting_input` state and needs human intervention
@@ -44,6 +76,9 @@ Notifications are triggered when:
 All channels can be enabled simultaneously — configure an admin email, WhatsApp phone number, and/or Slack webhook per agent or globally for the Agent Manager.
 
 > See the [Notifications Guide](docs/guide/notifications.md) for detailed setup instructions.
+
+### Feishu (Lark) Bot & Notifications
+Chat with your agents and receive rich interactive alerts directly in Feishu. The bot connects via WebSocket — no public URL required — and displays live, updateable agent cards with clickable choice buttons for permission prompts and pipeline alerts.
 
 ### Remote Access via Relay Server
 - **Access from anywhere** — Manage agents from your phone, laptop, or any device through a public relay server
@@ -59,15 +94,28 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 
 > See the [Remote Access Guide](docs/guide/remote-access.md) for setup instructions.
 
-### Template & Instruction Management
-- **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents
-- **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects existing CLAUDE.md and offers to load it
-- **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
-- **Session resume** — Pick up previous Claude Code sessions where they left off
-
 ### Internationalization
 - **7 languages**: English, Chinese (中文), Japanese (日本語), Korean (한국어), Spanish, French, German
 - Language selector persisted across sessions
+
+---
+
+## Demo
+
+### Quick Start — Create Agent with Template
+![Quick Start Demo](docs/screenshots/demo-quickstart.gif)
+
+*Create agent with CLAUDE.md template → agent runs autonomously → task completes*
+
+### Chat & Terminal
+![Chat & Terminal Demo](docs/screenshots/demo-chat-terminal.gif)
+
+*Interactive chat → agent responds with tool calls → PTY terminal → clone agent*
+
+### Task Pipeline
+![Pipeline Demo](docs/screenshots/demo-pipeline.gif)
+
+*Agent Manager: add tasks → start manager → watch agents run sequentially*
 
 ---
 
@@ -77,13 +125,17 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 |-----------|---------------|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Pipeline](docs/screenshots/pipeline.png) |
 
-| Create Agent | Templates |
-|--------------|-----------|
-| ![Create Agent](docs/screenshots/create-agent.png) | ![Templates](docs/screenshots/templates.png) |
+| Create Agent | Agent Chat |
+|--------------|------------|
+| ![Create Agent](docs/screenshots/create-agent.png) | ![Agent Chat](docs/screenshots/agent-chat.png) |
 
-| Multi-Language Support |
-|------------------------|
-| ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
+| Templates | Multi-Language Support |
+|-----------|-----------------------|
+| ![Templates](docs/screenshots/templates.png) | ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
+
+| PTY Web Terminal | |
+|------------------|--|
+| ![Terminal](docs/screenshots/terminal.png) | Interactive shell in the agent's working directory — run commands, launch `claude`, or debug directly from your browser (works locally and via relay) |
 
 ---
 
@@ -94,7 +146,7 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 - **Node.js** >= 18
 - **Claude Code CLI** (`claude`) — for Claude agents
 - **Codex CLI** (`codex`) — for Codex agents
-- **Git** — for worktree isolation
+- **Git** — for worktree isolation (optional; non-git directories work without it)
 
 ### Installation
 
@@ -185,6 +237,8 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 6. Optionally load a **CLAUDE.md template** or write custom instructions
 7. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
 8. Click **Create Agent**
+
+**Tip — Clone an existing agent:** Hit the **Clone** button on any agent card to create a new agent pre-filled with the same directory, provider, flags, and CLAUDE.md. Combine with templates for a reusable agent library: create a template with your standard instructions → create one agent using it → clone whenever you need a fresh instance.
 
 ### Dashboard
 
@@ -285,6 +339,12 @@ Create, edit, and reuse CLAUDE.md instruction templates across agents.
 | `agent:status` | Server → Client | Status change |
 | `task:update` | Server → Client | Pipeline task updated |
 | `pipeline:complete` | Server → Client | Pipeline complete |
+| `terminal:open` | Client → Server | Open PTY terminal in agent directory |
+| `terminal:input` | Client → Server | Send keystrokes to PTY |
+| `terminal:resize` | Client → Server | Resize PTY dimensions |
+| `terminal:close` | Client → Server | Close PTY session |
+| `terminal:output` | Server → Client | PTY output data |
+| `terminal:exit` | Server → Client | PTY process exited |
 | `meta:status` | Server → Client | Meta agent status |
 
 ---
@@ -312,6 +372,58 @@ Phone/Laptop → HTTP → Public Server (Relay :3457) ← WS tunnel ← Local Ma
 3. **Open the dashboard** from any device at `http://your-server:3457` — log in with your password
 
 The relay supports **password-based login** via `RELAY_PASSWORD` to protect the dashboard from unauthorized access. Sessions use JWT tokens with 24-hour expiry. The tunnel auto-reconnects if the connection drops. When `RELAY_URL` is not set, the server runs in local-only mode with no relay overhead.
+
+---
+
+## Feishu (Lark) Bot Integration
+
+Use Feishu (Lark) as an interactive bot interface alongside the web dashboard and terminals. The bot uses Feishu's **WebSocket long-connection** — no public URL needed on your agent machine.
+
+### Features
+
+- **Live agent cards** — Agent status, messages, cost, and branch are displayed as updateable interactive Feishu cards (auto-refreshed on every change, debounced to respect rate limits)
+- **Choice buttons everywhere** — When an agent waits for human input, permission prompts and choices appear as clickable card buttons — both in the bound chat *and* in proactive notification alerts
+- **Unified notifications** — Feishu replaces or complements email/WhatsApp/Slack: task failures, stuck agents, and pipeline completion all send rich cards to the admin chat instead of plain text
+- **Commands** — `/list`, `/attach`, `/detach`, `/stop`, `/status`, `/help`
+- **Access control** — Restrict bot access to specific Feishu `open_id`s via `FEISHU_ALLOWED_USERS`
+- **Persistent bindings** — Chat-to-agent bindings survive server restarts (stored in `data/feishu_bindings.json`)
+
+### Setup
+
+1. Create a Feishu bot at [Feishu Open Platform](https://open.feishu.cn/app)
+2. Enable permissions: **Receive messages** (`im:message.receive_v1`) and **Send messages** (`im:message:create`)
+3. Enable **WebSocket long-connection** event subscription
+4. Enable **Interactive card** support
+5. Set environment variables:
+
+```bash
+FEISHU_APP_ID=cli_xxxxxxxxxxxxxxxx
+FEISHU_APP_SECRET=xxxxxxxxxxxxxxxx
+
+# Admin chat for pipeline notifications (task failures, pipeline complete, stuck agents)
+FEISHU_ADMIN_CHAT_ID=oc_xxxxxxxxxxxx
+
+# Optional: restrict bot to specific users (comma-separated open_ids)
+FEISHU_ALLOWED_USERS=ou_xxxx,ou_yyyy
+```
+
+To send Feishu notifications for a specific agent (e.g., `waiting_input`), set `feishuChatId` when creating the agent via API:
+```json
+{ "feishuChatId": "oc_xxxxxxxxxxxx" }
+```
+
+### Usage
+
+| Command | Description |
+|---------|-------------|
+| `/list` | List all agents with status and a "Connect" button |
+| `/attach <name or ID>` | Bind this chat to an agent (shows live card) |
+| `/detach` | Unbind from the current agent |
+| `/stop` | Stop the currently bound agent |
+| `/status` | Refresh the current agent's status card |
+| `/help` | Show this help |
+
+Once attached, send free text to forward it directly to the agent. When the agent is waiting for input, click a choice button or type a reply.
 
 ---
 
@@ -345,6 +457,7 @@ AgentMonitor/
         MetaAgentManager.ts # Pipeline orchestration
         TunnelClient.ts     # Outbound tunnel to relay server
         tunnelBridge.ts     # Event bridge for tunnel
+        TerminalService.ts  # PTY terminal management (node-pty)
         WorktreeManager.ts  # Git worktree ops
         EmailNotifier.ts    # SMTP email notifications
         WhatsAppNotifier.ts # Twilio WhatsApp notifications

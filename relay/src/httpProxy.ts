@@ -28,6 +28,7 @@ export function createHttpProxy(tunnelManager: TunnelManager) {
         headers: {
           'content-type': req.headers['content-type'] || 'application/json',
           ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+          ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
         },
         body,
       });

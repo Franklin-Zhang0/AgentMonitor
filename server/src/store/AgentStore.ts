@@ -8,6 +8,7 @@ import type { PipelineTask, MetaAgentConfig } from '../models/Task.js';
 export interface ServerSettings {
   agentRetentionMs: number; // default 86400000 (24h), 0 = disabled
   promptSuggestions: string[]; // user-editable prompt quick-fill options
+  pathHistory: Record<string, string[]>; // machine hostname → recently used paths
 }
 
 const DEFAULT_SETTINGS: ServerSettings = {
@@ -19,6 +20,7 @@ const DEFAULT_SETTINGS: ServerSettings = {
     'fix the failing tests',
     'refactor for better readability and maintainability',
   ],
+  pathHistory: {},
 };
 
 export class AgentStore {
@@ -207,6 +209,15 @@ export class AgentStore {
 
   saveSettings(settings: ServerSettings): void {
     this.settings = { ...settings };
+    fs.writeFileSync(this.settingsFile, JSON.stringify(this.settings, null, 2));
+  }
+
+  recordPath(machine: string, dirPath: string): void {
+    if (!this.settings.pathHistory) this.settings.pathHistory = {};
+    const paths = this.settings.pathHistory[machine] || [];
+    // Move to front if exists, otherwise prepend (max 20 per machine)
+    const filtered = paths.filter(p => p !== dirPath);
+    this.settings.pathHistory[machine] = [dirPath, ...filtered].slice(0, 20);
     fs.writeFileSync(this.settingsFile, JSON.stringify(this.settings, null, 2));
   }
 }

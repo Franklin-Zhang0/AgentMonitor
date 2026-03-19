@@ -6,7 +6,7 @@ const joinedAgents = new Set<string>();
 export function getSocket(): Socket {
   if (!socket) {
     socket = io('/', {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       withCredentials: true,
     });
 

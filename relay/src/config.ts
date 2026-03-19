@@ -3,6 +3,6 @@ export const relayConfig = {
   token: process.env.RELAY_TOKEN || '',
   /** Optional domain for nginx proxy mode (not required for direct IP access) */
   domain: process.env.RELAY_DOMAIN || '',
-  /** Password for dashboard login (if empty, auth is disabled) */
+  /** @deprecated Use DASHBOARD_PASSWORD on the local server instead */
   password: process.env.RELAY_PASSWORD || '',
 };

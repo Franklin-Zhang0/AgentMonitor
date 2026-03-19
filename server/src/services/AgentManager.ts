@@ -1,7 +1,9 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
-import { readFileSync } from 'fs';
-import { basename } from 'path';
+import { execSync } from 'child_process';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import path, { basename } from 'path';
+import os from 'os';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
 import { AgentProcess, type StreamMessage } from './AgentProcess.js';
@@ -9,6 +11,11 @@ import { WorktreeManager } from './WorktreeManager.js';
 import { EmailNotifier } from './EmailNotifier.js';
 import { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import { SlackNotifier } from './SlackNotifier.js';
+import { FeishuNotifier } from './FeishuNotifier.js';
+
+function getInstructionFileName(provider: AgentConfig['provider']): string {
+  return provider === 'codex' ? 'AGENTS.md' : 'CLAUDE.md';
+}
 
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
@@ -18,14 +25,16 @@ export class AgentManager extends EventEmitter {
   private emailNotifier: EmailNotifier;
   private whatsappNotifier: WhatsAppNotifier;
   private slackNotifier: SlackNotifier;
+  private feishuNotifier: FeishuNotifier;
 
-  constructor(store: AgentStore, worktreeManager?: WorktreeManager, emailNotifier?: EmailNotifier, whatsappNotifier?: WhatsAppNotifier, slackNotifier?: SlackNotifier) {
+  constructor(store: AgentStore, worktreeManager?: WorktreeManager, emailNotifier?: EmailNotifier, whatsappNotifier?: WhatsAppNotifier, slackNotifier?: SlackNotifier, feishuNotifier?: FeishuNotifier) {
     super();
     this.store = store;
     this.worktreeManager = worktreeManager || new WorktreeManager();
     this.emailNotifier = emailNotifier || new EmailNotifier();
     this.whatsappNotifier = whatsappNotifier || new WhatsAppNotifier();
     this.slackNotifier = slackNotifier || new SlackNotifier();
+    this.feishuNotifier = feishuNotifier || new FeishuNotifier('', '');
   }
 
   async createAgent(name: string, agentConfig: AgentConfig): Promise<Agent> {
@@ -35,20 +44,50 @@ export class AgentManager extends EventEmitter {
     let worktreePath: string | undefined;
     let worktreeBranch: string | undefined;
 
-    // Create git worktree for isolation
-    try {
-      const result = this.worktreeManager.createWorktree(
-        agentConfig.directory,
-        branchName,
-        agentConfig.claudeMd,
-        agentConfig.provider,
-      );
-      worktreePath = result.worktreePath;
-      worktreeBranch = result.branch;
-    } catch (err) {
-      // If worktree creation fails, work directly in the directory
-      console.warn('[AgentManager] Worktree creation failed, using directory directly:', err);
+    // Ensure working directory exists (create if needed)
+    if (!existsSync(agentConfig.directory)) {
+      mkdirSync(agentConfig.directory, { recursive: true });
+      console.log(`[AgentManager] Created missing directory: ${agentConfig.directory}`);
+    }
+
+    // Create git worktree for isolation — only if the directory is already a git repo
+    const isGitRepo = (() => {
+      try {
+        execSync('git rev-parse --git-dir', { cwd: agentConfig.directory, stdio: 'pipe' });
+        return true;
+      } catch { return false; }
+    })();
+
+    if (isGitRepo) {
+      try {
+        const result = this.worktreeManager.createWorktree(
+          agentConfig.directory,
+          branchName,
+          agentConfig.claudeMd,
+          agentConfig.provider,
+        );
+        worktreePath = result.worktreePath;
+        worktreeBranch = result.branch;
+      } catch (err) {
+        console.warn('[AgentManager] Worktree creation failed, using directory directly:', err);
+        worktreePath = agentConfig.directory;
+        if (agentConfig.claudeMd) {
+          writeFileSync(
+            path.join(worktreePath, getInstructionFileName(agentConfig.provider)),
+            agentConfig.claudeMd,
+          );
+        }
+      }
+    } else {
+      // Not a git repo — work directly in the directory, no worktree needed.
       worktreePath = agentConfig.directory;
+      // Write the provider-specific instruction file directly into the working directory.
+      if (agentConfig.claudeMd) {
+        writeFileSync(
+          path.join(worktreePath, getInstructionFileName(agentConfig.provider)),
+          agentConfig.claudeMd,
+        );
+      }
     }
 
     const agent: Agent = {
@@ -67,7 +106,11 @@ export class AgentManager extends EventEmitter {
     };
 
     this.store.saveAgent(agent);
+    this.store.recordPath(os.hostname(), agentConfig.directory);
     this.startProcess(agent);
+
+    // Notify dashboard of newly created agent immediately
+    this.emit('agent:update', agent.id, agent);
 
     return agent;
   }
@@ -78,6 +121,10 @@ export class AgentManager extends EventEmitter {
 
     proc.on('message', (msg: StreamMessage) => {
       this.handleStreamMessage(agent.id, msg, agent.config.provider);
+    });
+
+    proc.on('terminal', (chunk: { stream: string; data: string }) => {
+      this.emit('agent:terminal', agent.id, chunk);
     });
 
     proc.on('stderr', (text: string) => {
@@ -97,8 +144,8 @@ export class AgentManager extends EventEmitter {
     });
 
     proc.on('exit', (code: number | null) => {
-      const restartPrompt = this.pendingRestartPrompts.get(agent.id);
-      if (restartPrompt !== undefined) {
+      if (this.pendingRestartPrompts.has(agent.id)) {
+        const restartPrompt = this.pendingRestartPrompts.get(agent.id) ?? '';
         this.pendingRestartPrompts.delete(agent.id);
         this.processes.delete(agent.id);
 
@@ -115,8 +162,16 @@ export class AgentManager extends EventEmitter {
       // Don't override 'stopped' status (set when result message is received)
       const current = this.store.getAgent(agent.id);
       if (current && current.status !== 'stopped') {
-        // null exit code (from SIGTERM/SIGKILL) after result is fine; only real errors are non-zero
         const status = (code === 0 || code === null) ? 'stopped' : 'error';
+        if (status === 'error') {
+          current.messages.push({
+            id: uuid(),
+            role: 'system',
+            content: `Agent process exited with code ${code}`,
+            timestamp: Date.now(),
+          });
+          this.store.saveAgent(current);
+        }
         this.updateAgentStatus(agent.id, status);
       }
       this.processes.delete(agent.id);
@@ -124,6 +179,16 @@ export class AgentManager extends EventEmitter {
 
     proc.on('error', (err: Error) => {
       console.error(`[Agent ${agent.id}] process error:`, err);
+      const a = this.store.getAgent(agent.id);
+      if (a) {
+        a.messages.push({
+          id: uuid(),
+          role: 'system',
+          content: `Process error: ${err.message}`,
+          timestamp: Date.now(),
+        });
+        this.store.saveAgent(a);
+      }
       this.updateAgentStatus(agent.id, 'error');
     });
 
@@ -204,10 +269,13 @@ export class AgentManager extends EventEmitter {
               timestamp: Date.now(),
             });
           } else if (block.type === 'tool_use') {
+            const inputStr = block.input ? (typeof block.input === 'string' ? block.input : JSON.stringify(block.input, null, 2)) : '';
             agent.messages.push({
               id: uuid(),
               role: 'tool',
               content: `Using tool: ${block.name || 'unknown'}`,
+              toolName: block.name || 'unknown',
+              toolInput: inputStr.length > 5000 ? inputStr.slice(0, 5000) + '\n...(truncated)' : inputStr,
               timestamp: Date.now(),
             });
           }
@@ -239,10 +307,39 @@ export class AgentManager extends EventEmitter {
       }
     }
 
+    // Capture tool results from 'user' type messages (Claude sends tool results as user messages)
+    if (msg.type === 'user') {
+      const userMessage = msg.message as { content?: Array<{ type: string; content?: string; tool_use_id?: string }> } | undefined;
+      const toolResult = msg.tool_use_result as { stdout?: string; stderr?: string } | undefined;
+      if (userMessage?.content) {
+        for (const block of userMessage.content) {
+          if (block.type === 'tool_result') {
+            let resultText = '';
+            if (toolResult?.stdout) resultText = toolResult.stdout;
+            else if (typeof block.content === 'string') resultText = block.content;
+            if (resultText) {
+              // Attach result to the most recent tool message without a result
+              const lastToolMsg = [...agent.messages].reverse().find(m => m.role === 'tool' && !m.toolResult);
+              if (lastToolMsg) {
+                lastToolMsg.toolResult = resultText.length > 10000 ? resultText.slice(0, 10000) + '\n...(truncated)' : resultText;
+                if (toolResult?.stderr) {
+                  lastToolMsg.toolResult += '\n[stderr] ' + toolResult.stderr;
+                }
+                this.store.saveAgent(agent);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Track context window usage from system messages
     const anyMsg = msg as Record<string, unknown>;
     if (anyMsg.num_turns !== undefined || anyMsg.session_id !== undefined) {
-      // Claude verbose stream includes context info
+      // Claude verbose stream includes context info and session_id
+      if (anyMsg.session_id && typeof anyMsg.session_id === 'string') {
+        agent.sessionId = anyMsg.session_id;
+      }
       const contextUsed = (anyMsg.input_tokens_used as number) || 0;
       const contextTotal = (anyMsg.max_input_tokens as number) || 200000;
       if (contextUsed > 0) {
@@ -281,6 +378,13 @@ export class AgentManager extends EventEmitter {
         agent.costUsd = cost;
       }
 
+      // Store session ID for resume capability
+      const resultAny = msg as Record<string, unknown>;
+      const sessionId = msg.result?.session_id || (resultAny.session_id as string);
+      if (sessionId) {
+        agent.sessionId = sessionId;
+      }
+
       // Extract context window from result
       const resultMsg = msg as Record<string, unknown>;
       const inputTokens = (resultMsg.total_input_tokens as number) || (resultMsg.input_tokens_used as number);
@@ -291,7 +395,8 @@ export class AgentManager extends EventEmitter {
       this.store.saveAgent(agent);
       this.updateAgentStatus(agent.id, 'stopped');
 
-      // Claude -p with stream-json doesn't exit after result; kill the process
+      // In interactive stdin mode, Claude waits for more input after result;
+      // kill the process so the agent is truly stopped.
       const proc = this.processes.get(agent.id);
       if (proc) {
         proc.stop();
@@ -380,14 +485,28 @@ export class AgentManager extends EventEmitter {
     return match?.[0];
   }
 
+  private getMsgText(msg: StreamMessage): string {
+    if (msg.text) return msg.text as string;
+    if (msg.item?.text) return msg.item.text;
+    // Extract from stream-json message.content blocks
+    const message = msg.message as { content?: Array<{ type: string; text?: string }> } | undefined;
+    if (message?.content) {
+      return message.content
+        .filter(b => b.type === 'text' && b.text)
+        .map(b => b.text!)
+        .join('\n');
+    }
+    return '';
+  }
+
   private isClaudePermissionPrompt(msg: StreamMessage): boolean {
     if (msg.type === 'assistant' && msg.subtype === 'permission') return true;
-    const text = (msg.text || '').toLowerCase();
+    const text = this.getMsgText(msg).toLowerCase();
     return text.includes('permission') && text.includes('allow');
   }
 
   private extractInputPrompt(msg: StreamMessage): { prompt: string; choices?: string[] } {
-    const text = msg.text || msg.item?.text || '';
+    const text = this.getMsgText(msg) || msg.item?.text || '';
     const choices: string[] = [];
 
     // Claude permission prompts typically offer Yes/No/Always
@@ -437,6 +556,13 @@ export class AgentManager extends EventEmitter {
         agent.name,
         notificationMessage,
         agent.config.slackWebhookUrl,
+      );
+    }
+    if (agent.config.feishuChatId) {
+      this.feishuNotifier.notifyHumanNeeded(
+        agent.config.feishuChatId,
+        agent,
+        inputInfo.choices,
       );
     }
   }
@@ -495,12 +621,14 @@ export class AgentManager extends EventEmitter {
     agent.lastActivity = Date.now();
     this.store.saveAgent(agent);
     this.emit('agent:update', agentId, agent);
+    this.restartAgentWithResume(agentId);
   }
 
   sendMessage(agentId: string, text: string): void {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
 
+    // Add user message to history
     agent.messages.push({
       id: uuid(),
       role: 'user',
@@ -509,28 +637,15 @@ export class AgentManager extends EventEmitter {
     });
     agent.lastActivity = Date.now();
     this.store.saveAgent(agent);
+    // Emit full snapshot so chat UI updates immediately with user message
     this.emit('agent:update', agentId, agent);
 
     const proc = this.processes.get(agentId);
-    if (
-      agent.status === 'waiting_input' &&
-      agent.config.provider === 'claude' &&
-      proc &&
-      proc.isRunning
-    ) {
-      // Claude runs in one-shot mode with stdin closed, so approval requires
-      // restarting the session in --resume mode with the user's response.
-      this.pendingRestartPrompts.set(agentId, text);
-      this.updateAgentStatus(agentId, 'running');
-      proc.stop();
-      this.emit('agent:message', agentId, {
-        type: 'user',
-        text,
-      });
-      return;
-    }
-
-    if (proc && proc.isRunning) {
+    if (agent.config.provider === 'claude' && proc?.isRunning) {
+      // Claude keeps stdin open, so normal follow-up turns stay on the same process.
+      if (agent.status === 'waiting_input') {
+        this.updateAgentStatus(agentId, 'running');
+      }
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
@@ -539,8 +654,16 @@ export class AgentManager extends EventEmitter {
       return;
     }
 
-    // The current providers run in one-shot mode (`claude -p` / `codex exec`).
-    // For follow-up chat turns, start a new process with the latest user message.
+    if (agent.status === 'stopped' || agent.status === 'error') {
+      this.resumeAgent(agent, text);
+      this.emit('agent:message', agentId, {
+        type: 'user',
+        text,
+      });
+      return;
+    }
+
+    // Codex remains one-shot (`codex exec`). If there is no live process, restart from transcript.
     this.updateAgentStatus(agentId, 'running');
     const nextPrompt = agent.config.flags.resume ? text : this.buildReplayPrompt(agent);
     this.startProcess(agent, nextPrompt);
@@ -548,6 +671,38 @@ export class AgentManager extends EventEmitter {
       type: 'user',
       text,
     });
+  }
+
+  private resumeAgent(agent: Agent, newPrompt: string): void {
+    console.log(`[AgentManager] Resuming agent ${agent.id} (session: ${agent.sessionId || 'none'})`);
+
+    // Update the prompt to the new one
+    agent.config.prompt = newPrompt;
+    agent.currentTask = newPrompt.length > 120 ? newPrompt.slice(0, 120) + '...' : newPrompt;
+
+    // If we have a session ID, use --resume to continue the conversation
+    if (agent.sessionId && agent.config.provider === 'claude') {
+      agent.config.flags.resume = agent.sessionId;
+    }
+
+    this.updateAgentStatus(agent.id, 'running');
+    this.startProcess(agent);
+  }
+
+  private restartAgentWithResume(agentId: string): void {
+    const agent = this.store.getAgent(agentId);
+    const proc = this.processes.get(agentId);
+    if (!agent || agent.config.provider !== 'claude' || !proc?.isRunning) {
+      return;
+    }
+
+    if (agent.sessionId) {
+      agent.config.flags.resume = agent.sessionId;
+    }
+
+    this.pendingRestartPrompts.set(agentId, '');
+    this.updateAgentStatus(agentId, 'running');
+    proc.stop();
   }
 
   interruptAgent(agentId: string): void {
@@ -580,6 +735,7 @@ export class AgentManager extends EventEmitter {
       }
     }
     this.store.deleteAgent(agentId);
+    this.emit('agent:status', agentId, 'deleted');
   }
 
   async stopAllAgents(): Promise<void> {
@@ -636,6 +792,7 @@ export class AgentManager extends EventEmitter {
     }
 
     this.emit('agent:update', agentId, agent);
+    this.restartAgentWithResume(agentId);
   }
 
   getAgent(agentId: string): Agent | undefined {

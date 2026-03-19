@@ -1,6 +1,6 @@
 # Templates & CLAUDE.md
 
-Templates let you save and reuse CLAUDE.md configurations across agents.
+Templates let you save and reuse CLAUDE.md configurations across agents. Combined with the **Clone Agent** feature, you can quickly spin up new agents with pre-configured instructions and settings.
 
 ## Auto-Detect CLAUDE.md
 
@@ -31,8 +31,30 @@ When creating a new agent:
 
 You can modify an agent's CLAUDE.md at any time from the Chat view without restarting the agent. Click the **Edit CLAUDE.md** button in the chat header to open the editor.
 
+## Cloning Agents
+
+The **Clone** button (visible on every agent card and in the chat header) creates a new agent pre-filled with:
+
+- Same working directory
+- Same provider (Claude Code / Codex)
+- Same flags and configuration
+- Same CLAUDE.md content
+
+This is the fastest way to run a variation of an existing agent — clone it, adjust the prompt or flags, and launch. Cloning does **not** copy the conversation history; the new agent starts fresh.
+
+### Workflow: Template → Clone
+
+A common pattern for reusable agent setups:
+
+1. **Create a template** with your standard instructions (e.g., "TypeScript coding standards")
+2. **Create an agent**, load the template as its CLAUDE.md, set the directory and flags
+3. **Clone** that agent whenever you need a fresh instance with the same setup
+
+This gives you a library of reusable agent configurations without manually re-entering settings each time.
+
 ## Template Tips
 
 - Create a base template with common instructions (coding style, testing requirements)
 - Create specialized templates for different task types (frontend, backend, testing)
 - Templates are stored server-side and available to all users
+- Use Clone + Template together: template provides the instructions, clone replicates the full agent config

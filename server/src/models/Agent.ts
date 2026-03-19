@@ -6,6 +6,9 @@ export interface AgentMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   timestamp: number;
+  toolName?: string;
+  toolInput?: string;
+  toolResult?: string;
 }
 
 export interface AgentConfig {
@@ -16,6 +19,7 @@ export interface AgentConfig {
   adminEmail?: string;
   whatsappPhone?: string;
   slackWebhookUrl?: string;
+  feishuChatId?: string;
   flags: {
     dangerouslySkipPermissions?: boolean;
     resume?: string;
@@ -50,4 +54,5 @@ export interface Agent {
   mcpServers?: string[];
   contextWindow?: { used: number; total: number };
   currentTask?: string;
+  sessionId?: string;
 }

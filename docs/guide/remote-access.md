@@ -184,6 +184,26 @@ When `RELAY_URL` is **not set**, the server runs in local-only mode with zero re
 
 ---
 
+## Troubleshooting
+
+### Socket.IO connection errors in browser console
+
+If you see repeated `[Socket] Connection error: websocket error` in the browser console when accessing the relay URL, this is typically caused by a session authentication issue. The relay uses `RELAY_PASSWORD` to protect the Socket.IO connection.
+
+**How it works:** The client establishes Socket.IO using the `polling` transport first (which carries the auth cookie), then upgrades to WebSocket. Connecting directly via WebSocket without the polling handshake will fail auth and close with code 1006.
+
+**Fix:** Ensure you are logged in at the relay URL (`/api/auth/login`) before the socket connects. Clearing cookies and logging in again usually resolves stale-session errors.
+
+### Tunnel disconnects after agent machine restart
+
+The agent machine must be started with `RELAY_URL` and `RELAY_TOKEN` set. After a restart, the tunnel reconnects automatically within a few seconds. Check `[Tunnel] Authenticated successfully` in the server log.
+
+### PTY terminal not working via relay
+
+The terminal requires the Socket.IO connection to be established. If the socket isn't connected (see above), terminal events won't be forwarded. Confirm the socket is connected (`[Socket] Connected: ...` in the browser console) before opening the terminal.
+
+---
+
 ## Security Considerations
 
 - The tunnel uses a **shared token** for authentication. Use a strong random token.

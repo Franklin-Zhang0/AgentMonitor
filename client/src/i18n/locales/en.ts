@@ -6,6 +6,7 @@ export const en: Record<string, string> = {
     'nav.newAgent': 'New Agent',
     'nav.templates': 'Templates',
     'nav.help': 'Docs',
+    'nav.theme': 'Toggle theme',
 
     // Common
     'common.loading': 'Loading...',
@@ -76,6 +77,7 @@ export const en: Record<string, string> = {
     'chat.escHint': 'Press Esc twice to interrupt the agent',
     'chat.waitingInput': 'Agent is waiting for your input',
     'chat.inputRequiredPlaceholder': 'Type your response to the agent...',
+    'chat.resumePlaceholder': 'Type a message to resume this session...',
     'chat.inputPlaceholder': 'Type a message or / for commands...',
     'chat.editClaudeMdTitle': 'Edit CLAUDE.md',
     'chat.slashAgents': 'List all managed agents',
