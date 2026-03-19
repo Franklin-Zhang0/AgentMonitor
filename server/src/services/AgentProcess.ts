@@ -137,10 +137,11 @@ export class AgentProcess extends EventEmitter {
   }
 
   private buildClaudeCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
-    // --input-format stream-json: stdin stays open so permission approvals and
-    // follow-up messages can be sent after the initial prompt.
-    // The initial prompt is written to stdin immediately after process start.
+    // -p is required for --resume to work in non-interactive mode.
+    // --input-format stream-json keeps stdin open so the actual prompt (and any
+    // permission approvals / follow-up messages) are sent via stdin after start.
     const args: string[] = [
+      '-p', shellEscape(opts.prompt),
       '--output-format', 'stream-json',
       '--input-format', 'stream-json',
       '--verbose',

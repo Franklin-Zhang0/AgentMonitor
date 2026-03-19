@@ -45,8 +45,13 @@ export class AgentManager extends EventEmitter {
       console.log(`[AgentManager] Created missing directory: ${agentConfig.directory}`);
     }
 
+    // When resuming a previous Claude session, skip worktree creation: Claude
+    // stores sessions by project directory, so running in a worktree subdirectory
+    // would cause "No conversation found" because the path doesn't match.
+    const skipWorktree = !!agentConfig.flags.resume;
+
     // Create git worktree for isolation — only if the directory is already a git repo
-    const isGitRepo = (() => {
+    const isGitRepo = !skipWorktree && (() => {
       try {
         execSync('git rev-parse --git-dir', { cwd: agentConfig.directory, stdio: 'pipe' });
         return true;
