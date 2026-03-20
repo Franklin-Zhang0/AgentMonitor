@@ -74,7 +74,11 @@ export const ja: Record<string, string> = {
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.mdを編集',
-    'chat.escHint': 'Escを2回押してエージェントを中断',
+    'chat.escHint': 'Esc = 中断 · Esc×2 = セッション履歴',
+    'chat.interrupted': '[中断されました]',
+    'chat.sessionPickerTitle': 'セッション履歴',
+    'chat.sessionPickerHint': '↑↓ 移動 · Enter 選択 · Esc 閉じる',
+    'chat.noSessions': 'セッション履歴がありません。',
     'chat.waitingInput': 'エージェントが入力を待っています',
     'chat.inputRequiredPlaceholder': 'エージェントへの応答を入力...',
     'chat.resumePlaceholder': 'メッセージを入力してセッションを再開...',

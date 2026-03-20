@@ -710,9 +710,14 @@ export class AgentManager extends EventEmitter {
 
   updateClaudeMd(agentId: string, content: string): void {
     const agent = this.store.getAgent(agentId);
-    if (agent?.worktreePath) {
+    if (!agent) return;
+    // Write to the worktree file so the running agent sees the change
+    if (agent.worktreePath) {
       this.worktreeManager.updateClaudeMd(agent.worktreePath, content);
     }
+    // Persist to agent config so it survives restart / shows correctly in UI
+    agent.config.claudeMd = content;
+    this.store.saveAgent(agent);
   }
 
   getAgent(agentId: string): Agent | undefined {

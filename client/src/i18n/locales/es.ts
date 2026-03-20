@@ -74,7 +74,11 @@ export const es: Record<string, string> = {
 
     // Agent Chat
     'chat.editClaudeMd': 'Editar CLAUDE.md',
-    'chat.escHint': 'Presiona Esc dos veces para interrumpir el agente',
+    'chat.escHint': 'Esc = interrumpir · Esc×2 = historial de sesiones',
+    'chat.interrupted': '[Interrumpido]',
+    'chat.sessionPickerTitle': 'Historial de sesiones',
+    'chat.sessionPickerHint': '↑↓ navegar · Enter seleccionar · Esc cerrar',
+    'chat.noSessions': 'No se encontraron sesiones anteriores.',
     'chat.waitingInput': 'El agente está esperando su entrada',
     'chat.inputRequiredPlaceholder': 'Escriba su respuesta al agente...',
     'chat.resumePlaceholder': 'Escriba un mensaje para reanudar esta sesión...',

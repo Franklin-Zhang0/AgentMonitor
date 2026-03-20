@@ -74,7 +74,11 @@ export const ko: Record<string, string> = {
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.md 편집',
-    'chat.escHint': 'Esc를 두 번 눌러 에이전트를 중단하세요',
+    'chat.escHint': 'Esc = 중단 · Esc×2 = 세션 기록',
+    'chat.interrupted': '[중단됨]',
+    'chat.sessionPickerTitle': '세션 기록',
+    'chat.sessionPickerHint': '↑↓ 이동 · Enter 선택 · Esc 닫기',
+    'chat.noSessions': '이전 세션이 없습니다.',
     'chat.waitingInput': '에이전트가 입력을 기다리고 있습니다',
     'chat.inputRequiredPlaceholder': '에이전트에 대한 응답을 입력하세요...',
     'chat.resumePlaceholder': '메시지를 입력하여 세션을 재개...',

@@ -59,6 +59,9 @@ export function AgentChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const [sessions, setSessions] = useState<Array<{ id: string; projectPath: string; lastModified: number }>>([]);
+  const [sessionPickerIdx, setSessionPickerIdx] = useState(0);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -208,25 +211,63 @@ export function AgentChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agent?.messages?.length]);
 
-  // Double-Esc handler
+  // Esc key handler: single = interrupt, double = session history picker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // If session picker is open, navigate or close it
+        if (showSessionPicker) {
+          if (e.key === 'Escape') {
+            setShowSessionPicker(false);
+            lastEscRef.current = 0;
+          }
+          return;
+        }
         const now = Date.now();
         if (now - lastEscRef.current < 500) {
-          // Double Esc
+          // Double Esc → show session history picker
+          lastEscRef.current = 0;
+          api.getSessions().then((all) => {
+            // Filter to sessions from the same project directory
+            const dir = agent?.config.directory || '';
+            const encodedDir = dir.replace(/\//g, '-');
+            const filtered = all.filter(s =>
+              s.projectPath === encodedDir || s.projectPath.endsWith(encodedDir)
+            );
+            setSessions(filtered.length > 0 ? filtered : all.slice(0, 20));
+            setSessionPickerIdx(0);
+            setShowSessionPicker(true);
+          });
+        } else {
+          // Single Esc → interrupt
+          lastEscRef.current = now;
           if (id) {
             api.interruptAgent(id);
+            addLocalMessage(t('chat.interrupted'));
           }
-          lastEscRef.current = 0;
-        } else {
-          lastEscRef.current = now;
+        }
+      }
+      // Arrow-key navigation inside session picker
+      if (showSessionPicker) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSessionPickerIdx(i => Math.min(i + 1, sessions.length - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSessionPickerIdx(i => Math.max(i - 1, 0));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const chosen = sessions[sessionPickerIdx];
+          if (chosen) {
+            setShowSessionPicker(false);
+            navigate(`/create?from=${id}&session=${chosen.id}`);
+          }
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [id]);
+  }, [id, agent, showSessionPicker, sessions, sessionPickerIdx, navigate]);
 
   const handleInputChange = (value: string) => {
     setInput(value);
@@ -775,6 +816,42 @@ export function AgentChat() {
           </button>
         </div>
       </div>
+
+      {/* Session history picker (double-Esc) */}
+      {showSessionPicker && (
+        <div className="modal-overlay" onClick={() => setShowSessionPicker(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <span className="modal-title">{t('chat.sessionPickerTitle')}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('chat.sessionPickerHint')}</span>
+              <button className="btn btn-sm btn-outline" onClick={() => setShowSessionPicker(false)}>{t('common.cancel')}</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {sessions.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('chat.noSessions')}</div>
+              ) : sessions.map((s, i) => (
+                <div
+                  key={s.id}
+                  onClick={() => { setShowSessionPicker(false); navigate(`/create?from=${id}&session=${s.id}`); }}
+                  style={{
+                    padding: '10px 16px',
+                    cursor: 'pointer',
+                    background: i === sessionPickerIdx ? 'var(--primary)' : 'transparent',
+                    color: i === sessionPickerIdx ? '#fff' : 'var(--text)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                  onMouseEnter={() => setSessionPickerIdx(i)}
+                >
+                  <div style={{ fontSize: 13, fontFamily: 'monospace' }}>{s.id.slice(0, 8)}…</div>
+                  <div style={{ fontSize: 11, color: i === sessionPickerIdx ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)', marginTop: 2 }}>
+                    {s.projectPath.replace(/-/g, '/')} &nbsp;·&nbsp; {new Date(s.lastModified).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingClaudeMd && (
         <div className="modal-overlay" onClick={() => setEditingClaudeMd(false)}>
