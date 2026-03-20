@@ -121,7 +121,7 @@ export function Dashboard() {
               {t('dashboard.stopAll')}
             </button>
           )}
-          <button className="btn btn-outline" onClick={() => setShowSettings(true)} title={t('dashboard.settings')}>
+          <button className="btn btn-outline" onClick={() => setShowSettings(true)} title={t('dashboard.settings')} style={{ fontSize: 30, lineHeight: 1 }}>
             &#9881;
           </button>
         </div>

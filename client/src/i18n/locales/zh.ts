@@ -7,6 +7,9 @@ export const zh: Record<string, string> = {
     'nav.templates': '模板',
     'nav.help': '文档',
     'nav.theme': '切换主题',
+    'nav.scheme': '切换配色',
+    'nav.schemeDefault': 'Default',
+    'nav.schemeTerra': 'Terra',
 
     // Common
     'common.loading': '加载中...',

@@ -7,6 +7,9 @@ export const en: Record<string, string> = {
     'nav.templates': 'Templates',
     'nav.help': 'Docs',
     'nav.theme': 'Toggle theme',
+    'nav.scheme': 'Switch palette',
+    'nav.schemeDefault': 'Default',
+    'nav.schemeTerra': 'Terra',
 
     // Common
     'common.loading': 'Loading...',

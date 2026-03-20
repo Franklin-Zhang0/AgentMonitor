@@ -9,10 +9,13 @@ import { Login } from './pages/Login';
 import { useAuth } from './hooks/useAuth';
 import { LanguageProvider, useTranslation } from './i18n';
 
+type ColorScheme = 'default' | 'terra';
+
 function NavBar({ onLogout }: { onLogout?: () => void }) {
   const location = useLocation();
   const { lang, setLang, t } = useTranslation();
-  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('agentmonitor-theme') || 'dark');
+  const [scheme, setScheme] = useState<ColorScheme>(() => (localStorage.getItem('agentmonitor-scheme') as ColorScheme) || 'default');
 
   return (
     <nav className="nav">
@@ -32,7 +35,7 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
         </Link>
       </div>
       <button
-        className="theme-toggle"
+        className="nav-control"
         onClick={() => {
           const next = theme === 'light' ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', next);
@@ -40,7 +43,6 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
           setTheme(next);
         }}
         title={t('nav.theme')}
-        style={{ cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', fontSize: 14 }}
       >
         {theme === 'light' ? '\u263D' : '\u2600'}
       </button>
@@ -57,7 +59,6 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
         className="lang-toggle"
         value={lang}
         onChange={(e) => setLang(e.target.value as typeof lang)}
-        style={{ cursor: 'pointer', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 13 }}
       >
         <option value="en">EN</option>
         <option value="zh">中文</option>
@@ -67,12 +68,27 @@ function NavBar({ onLogout }: { onLogout?: () => void }) {
         <option value="fr">FR</option>
         <option value="de">DE</option>
       </select>
+      <button
+        className="nav-control"
+        onClick={() => {
+          const next = scheme === 'default' ? 'terra' : 'default';
+          if (next === 'default') {
+            document.documentElement.removeAttribute('data-scheme');
+          } else {
+            document.documentElement.setAttribute('data-scheme', next);
+          }
+          localStorage.setItem('agentmonitor-scheme', next);
+          setScheme(next);
+        }}
+        title={t('nav.scheme')}
+      >
+        {scheme === 'default' ? t('nav.schemeDefault') : t('nav.schemeTerra')}
+      </button>
       {onLogout && (
         <button
-          className="lang-toggle"
+          className="nav-control"
           onClick={onLogout}
           title="Logout"
-          style={{ marginLeft: '0.25rem' }}
         >
           Logout
         </button>
@@ -110,8 +126,12 @@ function AuthenticatedApp() {
 
 export function App() {
   useEffect(() => {
-    const saved = localStorage.getItem('agentmonitor-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
+    const savedTheme = localStorage.getItem('agentmonitor-theme');
+    if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+    const savedScheme = localStorage.getItem('agentmonitor-scheme');
+    if (savedScheme && savedScheme !== 'default') {
+      document.documentElement.setAttribute('data-scheme', savedScheme);
+    }
   }, []);
 
   return (

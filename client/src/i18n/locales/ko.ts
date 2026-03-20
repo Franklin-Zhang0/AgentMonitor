@@ -7,6 +7,9 @@ export const ko: Record<string, string> = {
     'nav.templates': '템플릿',
     'nav.help': '문서',
     'nav.theme': '테마 전환',
+    'nav.scheme': '배색 전환',
+    'nav.schemeDefault': 'Default',
+    'nav.schemeTerra': 'Terra',
 
     // Common
     'common.loading': '로딩 중...',

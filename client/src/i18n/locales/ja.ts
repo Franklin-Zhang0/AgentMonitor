@@ -7,6 +7,9 @@ export const ja: Record<string, string> = {
     'nav.templates': 'テンプレート',
     'nav.help': 'ドキュメント',
     'nav.theme': 'テーマ切替',
+    'nav.scheme': '配色切替',
+    'nav.schemeDefault': 'Default',
+    'nav.schemeTerra': 'Terra',
 
     // Common
     'common.loading': '読み込み中...',
