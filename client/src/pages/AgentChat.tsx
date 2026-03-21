@@ -58,8 +58,9 @@ export function AgentChat() {
   const [showTerminal, setShowTerminal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
+  const compositionEndTimeRef = useRef(0);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
@@ -601,6 +602,10 @@ export function AgentChat() {
     }
 
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
+      // Reject Enter keys within 300ms of compositionEnd — these are IME confirmations, not send intent
+      if (Date.now() - compositionEndTimeRef.current < 300) {
+        return;
+      }
       e.preventDefault();
       handleSend();
     }
@@ -748,25 +753,31 @@ export function AgentChat() {
           fontWeight: 500,
           animation: 'pulse 2s infinite',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: inputRequired?.choices ? 8 : 0 }}>
-            <span style={{ fontSize: 16 }}>&#9888;</span>
-            <span>{inputRequired?.prompt || t('chat.waitingInput')}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: inputRequired?.choices ? 8 : 0 }}>
+            <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '20px' }}>&#9888;</span>
+            <span style={{
+              maxHeight: inputRequired?.choices ? 60 : 120,
+              overflowY: 'auto',
+              display: 'block',
+              lineHeight: '20px',
+            }}>{inputRequired?.prompt || t('chat.waitingInput')}</span>
           </div>
           {inputRequired?.choices && inputRequired.choices.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, paddingTop: 6, borderTop: '1px solid rgba(0,0,0,0.15)' }}>
               {inputRequired.choices.map((choice, i) => (
                 <button
                   key={i}
                   onClick={() => handleChoiceSelect(choice)}
                   style={{
-                    padding: '4px 14px',
-                    fontSize: 12,
+                    padding: '6px 18px',
+                    fontSize: 13,
                     fontWeight: 600,
                     borderRadius: 6,
-                    border: '1px solid rgba(0,0,0,0.3)',
-                    background: 'rgba(255,255,255,0.9)',
+                    border: '2px solid rgba(0,0,0,0.4)',
+                    background: 'rgba(255,255,255,0.95)',
                     color: '#000',
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {choice}
@@ -793,19 +804,26 @@ export function AgentChat() {
           </div>
         )}
         <div className="chat-input-area">
-          <input
+          <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onCompositionStart={() => { composingRef.current = true; }}
-            onCompositionEnd={() => { setTimeout(() => { composingRef.current = false; }, 50); }}
+            onCompositionEnd={() => { compositionEndTimeRef.current = Date.now(); setTimeout(() => { composingRef.current = false; }, 100); }}
             placeholder={
               agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') :
               (agent.status === 'stopped' || agent.status === 'error') ? t('chat.resumePlaceholder') :
               t('chat.inputPlaceholder')
             }
             autoFocus
+            rows={1}
+            style={{ resize: 'none', overflow: 'hidden' }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+            }}
           />
           <button className="btn" onClick={handleSend}>
             {t('common.send')}

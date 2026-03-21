@@ -608,11 +608,28 @@ export class AgentManager extends EventEmitter {
       choices.push('Yes', 'No', 'Always allow');
     }
 
-    // Detect numbered choices (1. Option A  2. Option B)
-    const numberedPattern = /^\s*(\d+)[.)]\s+(.+)$/gm;
-    let match;
-    while ((match = numberedPattern.exec(text)) !== null) {
-      choices.push(match[2].trim());
+    // Detect numbered choices only at the END of the text.
+    // Real choice prompts put short options at the end; numbered steps in explanations are NOT choices.
+    if (choices.length === 0) {
+      const lines = text.split('\n');
+      // Walk backwards from the end to find a contiguous block of numbered lines
+      const numberedLines: string[] = [];
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const m = lines[i].match(/^\s*(\d+)[.)]\s+(.+)$/);
+        if (m) {
+          numberedLines.unshift(m[2].trim());
+        } else if (lines[i].trim() === '') {
+          // skip trailing blank lines
+          if (numberedLines.length > 0) break;
+        } else {
+          break;
+        }
+      }
+      // Only treat as choices if: 2-8 items, each item is short (< 60 chars)
+      if (numberedLines.length >= 2 && numberedLines.length <= 8 &&
+          numberedLines.every(c => c.length < 60)) {
+        choices.push(...numberedLines);
+      }
     }
 
     // Detect (y/n) style prompts
