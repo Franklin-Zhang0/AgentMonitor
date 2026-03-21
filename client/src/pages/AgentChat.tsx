@@ -59,6 +59,7 @@ export function AgentChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
@@ -599,7 +600,7 @@ export function AgentChat() {
       return;
     }
 
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
       e.preventDefault();
       handleSend();
     }
@@ -797,6 +798,8 @@ export function AgentChat() {
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { setTimeout(() => { composingRef.current = false; }, 50); }}
             placeholder={
               agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') :
               (agent.status === 'stopped' || agent.status === 'error') ? t('chat.resumePlaceholder') :
