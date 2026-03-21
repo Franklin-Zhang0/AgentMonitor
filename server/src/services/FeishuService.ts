@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
-import type { Agent } from '../models/Agent.js';
+import type { Agent, AgentMessage } from '../models/Agent.js';
 import type { AgentManager } from './AgentManager.js';
 import {
   buildAgentCard,
@@ -103,6 +103,16 @@ export class FeishuService extends EventEmitter {
       if (agent) this.scheduleCardUpdate(agentId, agent);
     });
 
+    // Real-time output streaming: forward assistant messages as text
+    this.manager.on('agent:delta', (agentId: string, delta: any) => {
+      const messages: AgentMessage[] = delta?.messages || [];
+      for (const msg of messages) {
+        if (msg.role !== 'assistant' || !msg.content) continue;
+        if (!this.shouldForwardMessage(msg.content)) continue;
+        this.scheduleTextForward(agentId, msg.content);
+      }
+    });
+
     this.manager.on('agent:input_required', (agentId: string, data: { prompt: string; choices?: string[] }) => {
       // Update pending choices in bindings
       for (const [chatId, info] of this.bindings.entries()) {
@@ -114,6 +124,57 @@ export class FeishuService extends EventEmitter {
         }
       }
     });
+  }
+
+  private static readonly TRIVIAL_PATTERNS = [
+    /^(let me|now|reading|looking|checking|ok|okay|sure|i'll|i will|searching|opening|running|got it|understood|alright)/i,
+    /^.{0,30}$/,
+  ];
+
+  private shouldForwardMessage(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    for (const pat of FeishuService.TRIVIAL_PATTERNS) {
+      if (pat.test(trimmed)) return false;
+    }
+    return true;
+  }
+
+  private pendingTextMessages: Map<string, string[]> = new Map();
+
+  /** Schedule debounced text forwarding for assistant messages */
+  private scheduleTextForward(agentId: string, content: string): void {
+    if (!this.pendingTextMessages.has(agentId)) {
+      this.pendingTextMessages.set(agentId, []);
+    }
+    this.pendingTextMessages.get(agentId)!.push(content);
+
+    const key = `text:${agentId}`;
+    const existing = this.debounceTimers.get(key);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.debounceTimers.delete(key);
+      this.flushTextForward(agentId);
+    }, 2000);
+    this.debounceTimers.set(key, timer);
+  }
+
+  private flushTextForward(agentId: string): void {
+    const msgs = this.pendingTextMessages.get(agentId);
+    if (!msgs || msgs.length === 0) return;
+    this.pendingTextMessages.delete(agentId);
+
+    const combined = msgs.join('\n\n');
+    // Truncate to ~4000 chars for Feishu
+    const text = combined.length > 4000 ? combined.slice(0, 4000) + '\n...(truncated)' : combined;
+
+    for (const [chatId, info] of this.bindings.entries()) {
+      if (info.agentId === agentId) {
+        this.sendText(chatId, text).catch(err =>
+          console.error('[Feishu] flushTextForward error:', err),
+        );
+      }
+    }
   }
 
   /** Schedule a debounced card update (2s) to avoid rate limits */
@@ -294,6 +355,45 @@ export class FeishuService extends EventEmitter {
           await this.sendText(chatId, '✅ 已解除绑定。');
         } else {
           await this.sendText(chatId, '当前没有绑定任何智能体。');
+        }
+        break;
+      }
+
+      case '/create': {
+        if (!arg) {
+          await this.sendText(chatId, '用法: /create <目录> <提示词>');
+          return;
+        }
+        const spaceIdx = arg.indexOf(' ');
+        if (spaceIdx < 0) {
+          await this.sendText(chatId, '用法: /create <目录> <提示词>');
+          return;
+        }
+        const directory = arg.slice(0, spaceIdx);
+        const prompt = arg.slice(spaceIdx + 1).trim();
+        if (!prompt) {
+          await this.sendText(chatId, '用法: /create <目录> <提示词>');
+          return;
+        }
+        try {
+          const newAgent = await this.manager.createAgent(path.basename(directory), {
+            provider: 'claude',
+            directory,
+            prompt,
+            flags: {},
+          });
+          // Auto-bind
+          const newInfo: BindingInfo = { agentId: newAgent.id };
+          this.bindings.set(chatId, newInfo);
+          this.saveBindings();
+          const cardContent = buildAgentCard(newAgent, { chatId });
+          const msgId = await this.sendCard(chatId, cardContent);
+          if (msgId) {
+            newInfo.cardMessageId = msgId;
+            this.saveBindings();
+          }
+        } catch (err) {
+          await this.sendCard(chatId, buildTextCard(`创建失败: ${String(err)}`, '错误', 'red'));
         }
         break;
       }

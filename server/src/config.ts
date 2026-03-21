@@ -36,6 +36,10 @@ export const config = {
   },
   /** Password for dashboard login (if empty, auth is disabled) */
   password: process.env.DASHBOARD_PASSWORD || '',
+  telegram: {
+    token: process.env.TELEGRAM_TOKEN || '',
+    chatId: process.env.TELEGRAM_CHAT_ID || '',
+  },
   feishu: {
     appId: process.env.FEISHU_APP_ID || '',
     appSecret: process.env.FEISHU_APP_SECRET || '',

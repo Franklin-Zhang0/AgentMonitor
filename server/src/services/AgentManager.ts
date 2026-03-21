@@ -13,6 +13,10 @@ import { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import { SlackNotifier } from './SlackNotifier.js';
 import { FeishuNotifier } from './FeishuNotifier.js';
 
+/** How long (ms) after a user message with no response before we consider agent stuck */
+const STUCK_TIMEOUT_MS = 120_000; // 2 minutes
+const STUCK_CHECK_INTERVAL_MS = 30_000; // check every 30s
+
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
   private store: AgentStore;
@@ -21,6 +25,9 @@ export class AgentManager extends EventEmitter {
   private whatsappNotifier: WhatsAppNotifier;
   private slackNotifier: SlackNotifier;
   private feishuNotifier: FeishuNotifier;
+  /** Track when a user message was sent per agent (agentId → timestamp) */
+  private pendingUserMessage: Map<string, number> = new Map();
+  private stuckCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(store: AgentStore, worktreeManager?: WorktreeManager, emailNotifier?: EmailNotifier, whatsappNotifier?: WhatsAppNotifier, slackNotifier?: SlackNotifier, feishuNotifier?: FeishuNotifier) {
     super();
@@ -39,6 +46,51 @@ export class AgentManager extends EventEmitter {
         agent.pid = undefined;
         this.store.saveAgent(agent);
       }
+    }
+
+    // Periodically check for stuck agents (sent user message but no response)
+    this.stuckCheckInterval = setInterval(() => this.checkStuckAgents(), STUCK_CHECK_INTERVAL_MS);
+  }
+
+  private checkStuckAgents(): void {
+    const now = Date.now();
+    for (const [agentId, sentAt] of this.pendingUserMessage.entries()) {
+      if (now - sentAt < STUCK_TIMEOUT_MS) continue;
+
+      const agent = this.store.getAgent(agentId);
+      if (!agent || agent.status !== 'running') {
+        this.pendingUserMessage.delete(agentId);
+        continue;
+      }
+
+      const proc = this.processes.get(agentId);
+      if (!proc) {
+        this.pendingUserMessage.delete(agentId);
+        continue;
+      }
+
+      console.warn(`[AgentManager] Agent ${agentId} stuck (no response for ${STUCK_TIMEOUT_MS / 1000}s), interrupting`);
+      this.pendingUserMessage.delete(agentId);
+
+      // Notify the user
+      agent.messages.push({
+        id: uuid(),
+        role: 'system',
+        content: `[Stuck detected] No response for ${STUCK_TIMEOUT_MS / 1000}s after user message. Auto-interrupting — you can resend your message.`,
+        timestamp: now,
+      });
+      this.store.saveAgent(agent);
+
+      // Interrupt then stop
+      proc.interrupt();
+      setTimeout(() => {
+        const current = this.store.getAgent(agentId);
+        if (current && current.status === 'running') {
+          proc.stop();
+        }
+      }, 5000);
+
+      this.emit('agent:update', agentId, agent);
     }
   }
 
@@ -210,6 +262,9 @@ export class AgentManager extends EventEmitter {
   private handleStreamMessage(agentId: string, msg: StreamMessage, provider: string): void {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
+
+    // Agent is responding — clear stuck detection timer
+    this.pendingUserMessage.delete(agentId);
 
     const prevMsgCount = agent.messages.length;
 
@@ -649,6 +704,7 @@ export class AgentManager extends EventEmitter {
       if (agent.status === 'waiting_input') {
         this.updateAgentStatus(agentId, 'running');
       }
+      this.pendingUserMessage.set(agentId, Date.now());
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
