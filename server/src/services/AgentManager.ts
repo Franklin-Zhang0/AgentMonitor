@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
 import { execSync } from 'child_process';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, statSync } from 'fs';
 import path, { basename } from 'path';
 import os from 'os';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
@@ -13,6 +13,10 @@ import { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import { SlackNotifier } from './SlackNotifier.js';
 import { FeishuNotifier } from './FeishuNotifier.js';
 
+/** How long (ms) after a user message with no response before we consider agent stuck */
+const STUCK_TIMEOUT_MS = 120_000; // 2 minutes
+const STUCK_CHECK_INTERVAL_MS = 30_000; // check every 30s
+
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
   private store: AgentStore;
@@ -21,6 +25,9 @@ export class AgentManager extends EventEmitter {
   private whatsappNotifier: WhatsAppNotifier;
   private slackNotifier: SlackNotifier;
   private feishuNotifier: FeishuNotifier;
+  /** Track when a user message was sent per agent (agentId → timestamp) */
+  private pendingUserMessage: Map<string, number> = new Map();
+  private stuckCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(store: AgentStore, worktreeManager?: WorktreeManager, emailNotifier?: EmailNotifier, whatsappNotifier?: WhatsAppNotifier, slackNotifier?: SlackNotifier, feishuNotifier?: FeishuNotifier) {
     super();
@@ -30,6 +37,61 @@ export class AgentManager extends EventEmitter {
     this.whatsappNotifier = whatsappNotifier || new WhatsAppNotifier();
     this.slackNotifier = slackNotifier || new SlackNotifier();
     this.feishuNotifier = feishuNotifier || new FeishuNotifier('', '');
+
+    // On startup, mark any agents that were left in running/waiting_input as
+    // stopped — their processes died when the server restarted.
+    for (const agent of this.store.getAllAgents()) {
+      if (agent.status === 'running' || agent.status === 'waiting_input') {
+        agent.status = 'stopped';
+        agent.pid = undefined;
+        this.store.saveAgent(agent);
+      }
+    }
+
+    // Periodically check for stuck agents (sent user message but no response)
+    this.stuckCheckInterval = setInterval(() => this.checkStuckAgents(), STUCK_CHECK_INTERVAL_MS);
+  }
+
+  private checkStuckAgents(): void {
+    const now = Date.now();
+    for (const [agentId, sentAt] of this.pendingUserMessage.entries()) {
+      if (now - sentAt < STUCK_TIMEOUT_MS) continue;
+
+      const agent = this.store.getAgent(agentId);
+      if (!agent || agent.status !== 'running') {
+        this.pendingUserMessage.delete(agentId);
+        continue;
+      }
+
+      const proc = this.processes.get(agentId);
+      if (!proc) {
+        this.pendingUserMessage.delete(agentId);
+        continue;
+      }
+
+      console.warn(`[AgentManager] Agent ${agentId} stuck (no response for ${STUCK_TIMEOUT_MS / 1000}s), interrupting`);
+      this.pendingUserMessage.delete(agentId);
+
+      // Notify the user
+      agent.messages.push({
+        id: uuid(),
+        role: 'system',
+        content: `[Stuck detected] No response for ${STUCK_TIMEOUT_MS / 1000}s after user message. Auto-interrupting — you can resend your message.`,
+        timestamp: now,
+      });
+      this.store.saveAgent(agent);
+
+      // Interrupt then stop
+      proc.interrupt();
+      setTimeout(() => {
+        const current = this.store.getAgent(agentId);
+        if (current && current.status === 'running') {
+          proc.stop();
+        }
+      }, 5000);
+
+      this.emit('agent:update', agentId, agent);
+    }
   }
 
   async createAgent(name: string, agentConfig: AgentConfig): Promise<Agent> {
@@ -45,8 +107,19 @@ export class AgentManager extends EventEmitter {
       console.log(`[AgentManager] Created missing directory: ${agentConfig.directory}`);
     }
 
+    // When resuming a previous Claude session, detect the original working directory
+    // from the session file so we run in the correct directory (avoids "No conversation found").
+    if (agentConfig.flags.resume) {
+      const sessionCwd = this.findSessionCwd(agentConfig.flags.resume, agentConfig.directory);
+      if (sessionCwd && existsSync(sessionCwd)) {
+        console.log(`[AgentManager] Resume: using session cwd: ${sessionCwd}`);
+        agentConfig.directory = sessionCwd;
+      }
+    }
+    const skipWorktree = !!agentConfig.flags.resume;
+
     // Create git worktree for isolation — only if the directory is already a git repo
-    const isGitRepo = (() => {
+    const isGitRepo = !skipWorktree && (() => {
       try {
         execSync('git rev-parse --git-dir', { cwd: agentConfig.directory, stdio: 'pipe' });
         return true;
@@ -189,6 +262,9 @@ export class AgentManager extends EventEmitter {
   private handleStreamMessage(agentId: string, msg: StreamMessage, provider: string): void {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
+
+    // Agent is responding — clear stuck detection timer
+    this.pendingUserMessage.delete(agentId);
 
     const prevMsgCount = agent.messages.length;
 
@@ -358,7 +434,27 @@ export class AgentManager extends EventEmitter {
         agent.contextWindow = { used: inputTokens, total: maxTokens };
       }
 
-      this.updateAgentStatus(agent.id, 'stopped');
+      // Handle error results (e.g. "No conversation found" when resuming expired session)
+      const isError = (resultAny.is_error as boolean) || msg.result?.is_error;
+      if (isError) {
+        const errors = (resultAny.errors as string[]) || [];
+        const errText = errors.join('; ') || 'Claude returned an error result';
+        agent.messages.push({
+          id: uuid(),
+          role: 'system',
+          content: `[Error] ${errText}`,
+          timestamp: Date.now(),
+        });
+        // If session not found, clear the saved sessionId so next resume starts fresh
+        if (errors.some(e => e.includes('No conversation found'))) {
+          agent.sessionId = undefined;
+          delete agent.config.flags.resume;
+        }
+        this.store.saveAgent(agent);
+        this.updateAgentStatus(agent.id, 'error');
+      } else {
+        this.updateAgentStatus(agent.id, 'stopped');
+      }
 
       // In interactive stdin mode, Claude waits for more input after result;
       // kill the process so the agent is truly stopped.
@@ -419,6 +515,48 @@ export class AgentManager extends EventEmitter {
         this.store.saveAgent(agent);
       }
     }
+  }
+
+  /**
+   * Given a Claude session ID, find the original working directory by reading
+   * the session JSONL file. Claude stores sessions under:
+   *   ~/.claude/projects/<encoded-path>/<sessionId>.jsonl
+   * The first message with a `cwd` field contains the original working directory.
+   *
+   * If the session was run inside an existing agent worktree (under projectDir),
+   * that worktree path is returned so the agent can reuse it.
+   * Otherwise, the literal cwd from the session file is returned.
+   */
+  private findSessionCwd(sessionId: string, _projectDir: string): string | undefined {
+    try {
+      const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects');
+      if (!existsSync(claudeProjectsDir)) return undefined;
+
+      // Search all project subdirs for the session file
+      let projectDirs: string[];
+      try { projectDirs = readdirSync(claudeProjectsDir); } catch { return undefined; }
+
+      for (const projectSubdir of projectDirs) {
+        const sessionFile = path.join(claudeProjectsDir, projectSubdir, `${sessionId}.jsonl`);
+        if (!existsSync(sessionFile)) continue;
+
+        // Read the file to find a cwd field
+        const content = readFileSync(sessionFile, 'utf-8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const entry = JSON.parse(trimmed);
+            if (entry.cwd && typeof entry.cwd === 'string') {
+              return entry.cwd;
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      }
+    } catch (err) {
+      console.warn('[AgentManager] findSessionCwd error:', err);
+    }
+    return undefined;
   }
 
   private parseMcpServers(mcpConfigPath?: string): string[] {
@@ -566,6 +704,7 @@ export class AgentManager extends EventEmitter {
       if (agent.status === 'waiting_input') {
         this.updateAgentStatus(agentId, 'running');
       }
+      this.pendingUserMessage.set(agentId, Date.now());
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
@@ -637,9 +776,14 @@ export class AgentManager extends EventEmitter {
 
   updateClaudeMd(agentId: string, content: string): void {
     const agent = this.store.getAgent(agentId);
-    if (agent?.worktreePath) {
+    if (!agent) return;
+    // Write to the worktree file so the running agent sees the change
+    if (agent.worktreePath) {
       this.worktreeManager.updateClaudeMd(agent.worktreePath, content);
     }
+    // Persist to agent config so it survives restart / shows correctly in UI
+    agent.config.claudeMd = content;
+    this.store.saveAgent(agent);
   }
 
   getAgent(agentId: string): Agent | undefined {
@@ -665,5 +809,133 @@ export class AgentManager extends EventEmitter {
       }
     }
     return count;
+  }
+
+  /**
+   * Find the JSONL session file for a given sessionId.
+   * Searches ~/.claude/projects/star/[sessionId].jsonl
+   */
+  private findSessionJsonlPath(sessionId: string): string | undefined {
+    try {
+      const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects');
+      if (!existsSync(claudeProjectsDir)) return undefined;
+      let projectDirs: string[];
+      try { projectDirs = readdirSync(claudeProjectsDir); } catch { return undefined; }
+      for (const projectSubdir of projectDirs) {
+        const sessionFile = path.join(claudeProjectsDir, projectSubdir, `${sessionId}.jsonl`);
+        if (existsSync(sessionFile)) return sessionFile;
+      }
+    } catch (err) {
+      console.warn('[AgentManager] findSessionJsonlPath error:', err);
+    }
+    return undefined;
+  }
+
+  /**
+   * Restore the agent's conversation to the state just BEFORE turn `turnIndex`.
+   * Like local Claude CLI: truncates to before the selected user message,
+   * returns that message's text so the client can pre-fill the input box.
+   * Does NOT auto-restart — the user edits the prompt and sends manually.
+   */
+  async restoreConversation(agentId: string, turnIndex: number, restoreCode: boolean, restoreConv = true): Promise<string> {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) throw new Error(`Agent ${agentId} not found`);
+
+    // Stop the running process first
+    const proc = this.processes.get(agentId);
+    if (proc) {
+      proc.stop();
+      this.processes.delete(agentId);
+    }
+
+    // Find the user message text to return for pre-fill
+    let restoredPrompt = '';
+    let userMsgCount = 0;
+    for (const msg of agent.messages) {
+      if (msg.role === 'user') {
+        if (userMsgCount === turnIndex) {
+          restoredPrompt = msg.content;
+          break;
+        }
+        userMsgCount++;
+      }
+    }
+
+    // Truncate the JSONL session file — keep everything BEFORE the selected user turn
+    if (restoreConv && agent.sessionId) {
+      const jsonlPath = this.findSessionJsonlPath(agent.sessionId);
+      if (jsonlPath) {
+        try {
+          const content = readFileSync(jsonlPath, 'utf-8');
+          const lines = content.split('\n').filter(l => l.trim() !== '');
+          let userCount = 0;
+          let cutLine = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            try {
+              const parsed = JSON.parse(lines[i]);
+              if (parsed.type === 'user') {
+                if (userCount === turnIndex) {
+                  // Cut BEFORE this user turn
+                  cutLine = i;
+                  break;
+                }
+                userCount++;
+              }
+            } catch { /* skip malformed */ }
+          }
+          const truncated = lines.slice(0, cutLine).join('\n') + '\n';
+          writeFileSync(jsonlPath, truncated, 'utf-8');
+          console.log(`[AgentManager] Truncated JSONL to line ${cutLine} (before turn ${turnIndex})`);
+        } catch (err) {
+          console.warn('[AgentManager] JSONL truncation error:', err);
+        }
+      }
+    }
+
+    // Truncate agent.messages to BEFORE the Nth user-role message
+    if (restoreConv) {
+      userMsgCount = 0;
+      let keepUntil = agent.messages.length;
+      for (let i = 0; i < agent.messages.length; i++) {
+        if (agent.messages[i].role === 'user') {
+          if (userMsgCount === turnIndex) {
+            keepUntil = i;
+            break;
+          }
+          userMsgCount++;
+        }
+      }
+      agent.messages = agent.messages.slice(0, keepUntil);
+    }
+
+    // Optionally restore git worktree
+    if (restoreCode && agent.worktreePath) {
+      try {
+        const isGitRepo = (() => {
+          try {
+            execSync('git rev-parse --git-dir', { cwd: agent.worktreePath, stdio: 'pipe' });
+            return true;
+          } catch { return false; }
+        })();
+        if (isGitRepo) {
+          execSync('git restore .', { cwd: agent.worktreePath, stdio: 'pipe' });
+          console.log(`[AgentManager] git restore . in ${agent.worktreePath}`);
+        }
+      } catch (err) {
+        console.warn('[AgentManager] git restore failed:', err);
+      }
+    }
+
+    // Prepare for resume but don't auto-start — user will send from input
+    if (agent.sessionId && agent.config.provider === 'claude') {
+      agent.config.flags.resume = agent.sessionId;
+    }
+    agent.status = 'stopped';
+    agent.lastActivity = Date.now();
+    this.store.saveAgent(agent);
+    this.emit('agent:status', agentId, 'stopped');
+    this.emit('agent:update', agentId, agent);
+
+    return restoredPrompt;
   }
 }

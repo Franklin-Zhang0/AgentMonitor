@@ -138,5 +138,22 @@ export function agentRoutes(manager: AgentManager): Router {
     res.json({ ok: true });
   });
 
+  // Restore conversation to a previous turn
+  router.post('/:id/restore', async (req, res) => {
+    try {
+      const { turnIndex, restoreCode, restoreConv } = req.body;
+      if (typeof turnIndex !== 'number') {
+        res.status(400).json({ error: 'turnIndex (number) is required' });
+        return;
+      }
+      const restoredPrompt = await manager.restoreConversation(
+        req.params.id, Number(turnIndex), !!restoreCode, restoreConv !== false,
+      );
+      res.json({ ok: true, restoredPrompt });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   return router;
 }

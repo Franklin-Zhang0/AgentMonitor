@@ -26,6 +26,7 @@ import { setupTunnelBridge } from './services/tunnelBridge.js';
 import { TerminalService } from './services/TerminalService.js';
 import { FeishuService } from './services/FeishuService.js';
 import { FeishuNotifier } from './services/FeishuNotifier.js';
+import { TelegramService } from './services/TelegramService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -120,9 +121,22 @@ export function createApp() {
     return next(new Error('Authentication required'));
   });
 
+  // Slack streaming
+  slackNotifier.startStreaming(manager);
+
+  // Telegram bot (optional - only when TELEGRAM_TOKEN is set)
+  let telegramService: TelegramService | null = null;
+  if (config.telegram.token) {
+    telegramService = new TelegramService({
+      token: config.telegram.token,
+      chatId: config.telegram.chatId,
+    }, manager);
+    console.log('[Server] Telegram bot starting...');
+  }
+
   // Socket.IO
   const terminalService = new TerminalService();
-  setupSocketHandlers(io, manager, terminalService);
+  setupSocketHandlers(io, manager, terminalService, telegramService);
 
   // Forward meta agent events to socket
   metaAgent.on('task:update', (task) => {
@@ -150,6 +164,14 @@ export function createApp() {
     }
   }, 60_000);
 
+  // Start Telegram after IO is set up
+  if (telegramService) {
+    telegramService.setIO(io);
+    telegramService.start().catch(err =>
+      console.error('[Telegram] Failed to start:', err),
+    );
+  }
+
   // Feishu bot (optional - only when FEISHU_APP_ID is set)
   let feishuService: FeishuService | null = null;
   if (config.feishu.appId && config.feishu.appSecret) {
@@ -173,7 +195,7 @@ export function createApp() {
     console.log(`[Server] Tunnel client connecting to ${config.relay.url}`);
   }
 
-  return { app, httpServer, io, store, manager, metaAgent, cleanupInterval, tunnelClient, feishuService };
+  return { app, httpServer, io, store, manager, metaAgent, cleanupInterval, tunnelClient, feishuService, telegramService };
 }
 
 // Only start server if this is the main module

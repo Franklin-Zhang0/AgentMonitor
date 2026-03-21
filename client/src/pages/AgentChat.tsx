@@ -59,6 +59,10 @@ export function AgentChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
+  const [showHistoryPicker, setShowHistoryPicker] = useState(false);
+  const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
+  const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -208,25 +212,56 @@ export function AgentChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agent?.messages?.length]);
 
-  // Double-Esc handler
+  // Esc key handler: single = interrupt, double = conversation history picker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // If history picker or restore confirm is open, close them
+        if (historyRestoreTarget !== null) {
+          setHistoryRestoreTarget(null);
+          return;
+        }
+        if (showHistoryPicker) {
+          setShowHistoryPicker(false);
+          lastEscRef.current = 0;
+          return;
+        }
         const now = Date.now();
         if (now - lastEscRef.current < 500) {
-          // Double Esc
+          // Double Esc → show conversation history picker
+          lastEscRef.current = 0;
+          setHistoryPickerIdx(0);
+          setShowHistoryPicker(true);
+        } else {
+          // Single Esc → interrupt
+          lastEscRef.current = now;
           if (id) {
             api.interruptAgent(id);
+            addLocalMessage(t('chat.interrupted'));
           }
-          lastEscRef.current = 0;
-        } else {
-          lastEscRef.current = now;
+        }
+        return;
+      }
+      // Arrow-key navigation inside history picker
+      if (showHistoryPicker && historyRestoreTarget === null) {
+        const userTurns = agent?.messages.filter(m => m.role === 'user') || [];
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setHistoryPickerIdx(i => Math.min(i + 1, userTurns.length - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setHistoryPickerIdx(i => Math.max(i - 1, 0));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (userTurns[historyPickerIdx]) {
+            setHistoryRestoreTarget(historyPickerIdx);
+          }
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [id]);
+  }, [id, agent, showHistoryPicker, historyPickerIdx, historyRestoreTarget, navigate, t]);
 
   const handleInputChange = (value: string) => {
     setInput(value);
@@ -565,7 +600,7 @@ export function AgentChat() {
       return;
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
       e.preventDefault();
       handleSend();
     }
@@ -763,6 +798,8 @@ export function AgentChat() {
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { setTimeout(() => { composingRef.current = false; }, 50); }}
             placeholder={
               agent.status === 'waiting_input' ? t('chat.inputRequiredPlaceholder') :
               (agent.status === 'stopped' || agent.status === 'error') ? t('chat.resumePlaceholder') :
@@ -775,6 +812,104 @@ export function AgentChat() {
           </button>
         </div>
       </div>
+
+      {/* Conversation history picker (double-Esc) */}
+      {showHistoryPicker && (() => {
+        const userTurns = agent?.messages.filter(m => m.role === 'user') || [];
+        return (
+          <div className="modal-overlay" onClick={() => { setShowHistoryPicker(false); setHistoryRestoreTarget(null); }}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560, maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
+              <div className="modal-header">
+                <span className="modal-title">{t('chat.historyPickerTitle')}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('chat.historyPickerHint')}</span>
+                <button className="btn btn-sm btn-outline" onClick={() => { setShowHistoryPicker(false); setHistoryRestoreTarget(null); }}>{t('common.cancel')}</button>
+              </div>
+
+              {/* Restore options panel (matches local Claude CLI) */}
+              {historyRestoreTarget !== null && (() => {
+                const turnContent = userTurns[historyRestoreTarget]?.content || '';
+                const doRestore = async (restoreCode: boolean, restoreConv: boolean) => {
+                  if (!id || historyRestoreTarget === null) return;
+                  if (restoreCode || restoreConv) {
+                    const result = await api.restoreConversation(id, historyRestoreTarget, restoreCode, restoreConv);
+                    if (result.restoredPrompt) {
+                      setInput(result.restoredPrompt);
+                    }
+                    await fetchAgent();
+                  }
+                  setShowHistoryPicker(false);
+                  setHistoryRestoreTarget(null);
+                  setTimeout(() => inputRef.current?.focus(), 100);
+                };
+                const options = [
+                  { label: t('chat.restoreCodeAndConv'), action: () => doRestore(true, true) },
+                  { label: t('chat.restoreConversation'), action: () => doRestore(false, true) },
+                  { label: t('chat.restoreCodeOnly'), action: () => doRestore(true, false) },
+                  { label: t('chat.summarizeFromHere'), action: () => {
+                    if (id) {
+                      api.sendMessage(id, `/compact Summarize conversation up to this point`);
+                    }
+                    setShowHistoryPicker(false);
+                    setHistoryRestoreTarget(null);
+                  }},
+                  { label: t('chat.neverMind'), action: () => setHistoryRestoreTarget(null) },
+                ];
+                return (
+                  <div style={{ padding: '14px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 48, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Turn {historyRestoreTarget + 1}: {turnContent.slice(0, 100)}{turnContent.length > 100 ? '…' : ''}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {options.map((opt, i) => (
+                        <button
+                          key={i}
+                          className="btn btn-sm btn-outline"
+                          style={{ textAlign: 'left', justifyContent: 'flex-start', fontWeight: 400 }}
+                          onClick={opt.action}
+                        >
+                          {i + 1}. {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {!agent?.sessionId && (
+                  <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                    Note: No session ID — restore will not resume JSONL.
+                  </div>
+                )}
+                {userTurns.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{t('chat.noHistory')}</div>
+                ) : userTurns.map((msg, i) => (
+                  <div
+                    key={msg.id}
+                    onClick={() => setHistoryRestoreTarget(i)}
+                    style={{
+                      padding: '10px 16px',
+                      cursor: 'pointer',
+                      background: i === historyPickerIdx ? 'var(--primary)' : 'transparent',
+                      color: i === historyPickerIdx ? '#fff' : 'var(--text)',
+                      borderBottom: '1px solid var(--border)',
+                      borderLeft: historyRestoreTarget === i ? '3px solid var(--yellow, #f59e0b)' : '3px solid transparent',
+                    }}
+                    onMouseEnter={() => setHistoryPickerIdx(i)}
+                  >
+                    <div style={{ fontSize: 13, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {msg.content.slice(0, 80)}{msg.content.length > 80 ? '…' : ''}
+                    </div>
+                    <div style={{ fontSize: 11, color: i === historyPickerIdx ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', marginTop: 2 }}>
+                      Turn {i + 1} &nbsp;·&nbsp; {new Date(msg.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {editingClaudeMd && (
         <div className="modal-overlay" onClick={() => setEditingClaudeMd(false)}>

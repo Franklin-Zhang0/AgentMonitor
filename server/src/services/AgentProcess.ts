@@ -94,6 +94,9 @@ export class AgentProcess extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: cleanEnv,
       shell: true,
+      // detached: put shell in its own process group so we can signal the
+      // entire group (shell + claude child) rather than just the shell.
+      detached: true,
     });
 
     this._pid = this.process.pid;
@@ -137,10 +140,11 @@ export class AgentProcess extends EventEmitter {
   }
 
   private buildClaudeCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
-    // --input-format stream-json: stdin stays open so permission approvals and
-    // follow-up messages can be sent after the initial prompt.
-    // The initial prompt is written to stdin immediately after process start.
+    // -p is required for --resume to work in non-interactive mode.
+    // --input-format stream-json keeps stdin open so the actual prompt (and any
+    // permission approvals / follow-up messages) are sent via stdin after start.
     const args: string[] = [
+      '-p', shellEscape(opts.prompt),
       '--output-format', 'stream-json',
       '--input-format', 'stream-json',
       '--verbose',
@@ -245,18 +249,28 @@ export class AgentProcess extends EventEmitter {
   }
 
   interrupt(): void {
-    if (this.process) {
-      this.process.kill('SIGINT');
+    if (this.process && this._pid) {
+      try {
+        // Kill entire process group (shell + claude child)
+        process.kill(-this._pid, 'SIGINT');
+      } catch {
+        this.process.kill('SIGINT');
+      }
     }
   }
 
   stop(): void {
-    if (this.process) {
-      this.process.kill('SIGTERM');
+    if (this.process && this._pid) {
+      const pid = this._pid;
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        this.process.kill('SIGTERM');
+      }
       setTimeout(() => {
-        if (this.process) {
-          this.process.kill('SIGKILL');
-        }
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch { /* already gone */ }
       }, 5000);
     }
   }

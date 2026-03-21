@@ -94,9 +94,20 @@ export function Dashboard() {
     fetchAgents();
   };
 
-  const formatTime = (ts: number) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString();
+  const formatDuration = (createdAt: number, lastActivity: number) => {
+    const now = Date.now();
+    const elapsed = Math.floor((lastActivity - createdAt) / 1000);
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    const duration = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+
+    const agoSec = Math.floor((now - lastActivity) / 1000);
+    const ago = agoSec < 60 ? `${agoSec}s ago`
+      : agoSec < 3600 ? `${Math.floor(agoSec / 60)}m ago`
+      : `${Math.floor(agoSec / 3600)}h ago`;
+
+    return `${duration} · ${ago}`;
   };
 
   const getLastMessage = (agent: Agent) => {
@@ -220,7 +231,7 @@ export function Dashboard() {
               )}
 
               <div className="card-footer">
-                <span>{formatTime(agent.lastActivity)}</span>
+                <span>{formatDuration(agent.createdAt, agent.lastActivity)}</span>
                 {agent.costUsd !== undefined && (
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     ${agent.costUsd.toFixed(4)}

@@ -81,6 +81,12 @@ export function CreateAgent() {
         setModel((f.model as string) || '');
       }).catch(() => {});
     }
+
+    // Pre-select a session from the history picker (Esc×2 in AgentChat)
+    const sessionParam = searchParams.get('session');
+    if (sessionParam) {
+      setResumeSession(sessionParam);
+    }
   }, [searchParams]);
 
   const addSuggestion = async () => {

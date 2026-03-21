@@ -1,0 +1,22 @@
+{
+  "agentRetentionMs": 172800000,
+  "promptSuggestions": [
+    "kick off",
+    "keep working until confirmed all required features implemented without bugs during test",
+    "review the codebase and suggest improvements",
+    "fix the failing tests",
+    "refactor for better readability and maintainability"
+  ],
+  "pathHistory": {
+    "mhliugdc": [
+      "/home/mhliu/podcast-transcript-forum",
+      "/home/mhliu/podcast_chrome",
+      "/tmp",
+      "/home/mhliu/blog",
+      "/data/projects/AgentMonitor",
+      "/home/mhliu/test",
+      "/home/mhliu/dav4",
+      "/home/mhliu/vrglass"
+    ]
+  }
+}
