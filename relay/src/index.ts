@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -11,6 +12,15 @@ import { createHttpProxy } from './httpProxy.js';
 import { setupSocketBridge } from './socketBridge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function resolveExistingPath(...candidates: string[]): string {
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
+}
 
 function main() {
   if (!relayConfig.token) {
@@ -47,13 +57,19 @@ function main() {
   // Bridge Socket.IO between dashboard clients and tunnel
   setupSocketBridge(io, tunnel);
 
-  // Serve built client (deployed alongside relay)
-  // client-dist is at the relay root (parent of relay/ directory)
-  const clientDist = path.resolve(__dirname, '..', '..', 'client-dist');
+  // In deployed mode, static assets are copied next to the relay `dist/` folder.
+  // In a repo checkout, they live under the top-level client/docs build output.
+  const clientDist = resolveExistingPath(
+    path.resolve(__dirname, '..', 'client-dist'),
+    path.resolve(__dirname, '..', '..', 'client', 'dist'),
+  );
   app.use(express.static(clientDist));
 
   // Serve built docs if available
-  const docsDist = path.resolve(__dirname, '..', '..', 'docs-dist');
+  const docsDist = resolveExistingPath(
+    path.resolve(__dirname, '..', 'docs-dist'),
+    path.resolve(__dirname, '..', '..', 'docs', '.vitepress', 'dist'),
+  );
   app.use('/docs', express.static(docsDist));
   app.get('/docs/*', (_req, res) => {
     const indexPath = path.join(docsDist, 'index.html');

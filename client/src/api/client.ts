@@ -55,6 +55,7 @@ export interface Agent {
   contextWindow?: { used: number; total: number };
   currentTask?: string;
   sessionId?: string;
+  originalPrompt?: string;
 }
 
 export interface Template {
