@@ -944,8 +944,14 @@ export class AgentManager extends EventEmitter {
       }
     }
 
-    // Prepare for resume but don't auto-start — user will send from input
-    if (agent.sessionId && agent.config.provider === 'claude') {
+    // After truncating the JSONL, the old session is no longer valid for --resume.
+    // Clear sessionId so the next send starts a fresh session instead of hitting
+    // "No conversation found with session ID".
+    if (restoreConv) {
+      agent.sessionId = undefined;
+      delete agent.config.flags.resume;
+    } else if (agent.sessionId && agent.config.provider === 'claude') {
+      // Code-only restore: session is intact, keep resume flag
       agent.config.flags.resume = agent.sessionId;
     }
     agent.status = 'stopped';
