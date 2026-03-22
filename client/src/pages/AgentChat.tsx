@@ -4,6 +4,8 @@ import { api, type Agent } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
 import { TerminalView } from '../components/TerminalView';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -56,6 +58,7 @@ export function AgentChat() {
   const [inputRequired, setInputRequired] = useState<{ prompt: string; choices?: string[] } | null>(null);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [showTerminal, setShowTerminal] = useState(false);
+  const [renderMarkdown, setRenderMarkdown] = useState(() => localStorage.getItem('agentmonitor-markdown') !== 'false');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastEscRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -662,6 +665,19 @@ export function AgentChat() {
             {t('chat.editClaudeMd')}
           </button>
           <button
+            className={`btn btn-sm ${renderMarkdown ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => {
+              setRenderMarkdown(prev => {
+                const next = !prev;
+                localStorage.setItem('agentmonitor-markdown', String(next));
+                return next;
+              });
+            }}
+            title="Toggle Markdown / Raw"
+          >
+            {renderMarkdown ? 'MD' : 'Raw'}
+          </button>
+          <button
             className={`btn btn-sm ${showTerminal ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setShowTerminal(prev => !prev)}
             title="Toggle live terminal"
@@ -720,7 +736,9 @@ export function AgentChat() {
                   )}
                 </>
               ) : (
-                msg.content
+                renderMarkdown && msg.role === 'assistant'
+                  ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  : msg.content
               )}
             </div>
           );

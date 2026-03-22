@@ -970,6 +970,56 @@ body::after {
   border-bottom-left-radius: 4px;
 }
 
+/* Markdown rendering inside assistant messages */
+.chat-message.assistant p { margin: 0 0 8px 0; }
+.chat-message.assistant p:last-child { margin-bottom: 0; }
+.chat-message.assistant pre {
+  background: var(--bg-input);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 13px;
+  margin: 8px 0;
+}
+.chat-message.assistant code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.chat-message.assistant :not(pre) > code {
+  background: var(--bg-input);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.chat-message.assistant ul,
+.chat-message.assistant ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.chat-message.assistant h1,
+.chat-message.assistant h2,
+.chat-message.assistant h3 {
+  margin: 10px 0 6px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.chat-message.assistant h1 { font-size: 17px; }
+.chat-message.assistant table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.chat-message.assistant th,
+.chat-message.assistant td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+.chat-message.assistant blockquote {
+  border-left: 3px solid var(--primary);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--text-muted);
+}
+
 .chat-message.tool {
   background: transparent;
   border: 1px solid var(--border);
