@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type PipelineTask, type MetaAgentConfig, type AgentProvider, type Template } from '../api/client';
 import { getSocket } from '../api/socket';
@@ -10,8 +10,16 @@ export function Pipeline() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
   // New task form
   const [newName, setNewName] = useState('');
@@ -117,7 +125,7 @@ export function Pipeline() {
   const handleStartMeta = async () => {
     const pendingTasks = tasks.filter(t => t.status === 'pending');
     if (pendingTasks.length === 0) {
-      alert(t('pipeline.noTasksWarning'));
+      showToast(t('pipeline.noTasksWarning'));
       return;
     }
     await api.startMetaAgent();
@@ -509,6 +517,36 @@ export function Pipeline() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '10px 20px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--red)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--red)',
+            fontSize: 14,
+            fontWeight: 500,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          {toast}
+          <span
+            onClick={() => setToast(null)}
+            style={{ cursor: 'pointer', opacity: 0.6, fontSize: 16, lineHeight: 1 }}
+          >&times;</span>
         </div>
       )}
     </div>
