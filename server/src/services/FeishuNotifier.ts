@@ -3,7 +3,7 @@ import { buildAgentCard, buildTextCard } from './FeishuCardBuilder.js';
 
 async function makeClient(appId: string, appSecret: string) {
   const { Client } = await import('@larksuiteoapi/node-sdk');
-  return new Client({ appID: appId, appSecret });
+  return new Client({ appId: appId, appSecret });
 }
 
 /**

@@ -516,12 +516,12 @@ export class FeishuService extends EventEmitter {
     const { Client, WSClient, EventDispatcher } = sdk;
 
     this.client = new Client({
-      appID: this.cfg.appId,
+      appId: this.cfg.appId,
       appSecret: this.cfg.appSecret,
     });
 
     this.wsClient = new WSClient({
-      appID: this.cfg.appId,
+      appId: this.cfg.appId,
       appSecret: this.cfg.appSecret,
     });
 
