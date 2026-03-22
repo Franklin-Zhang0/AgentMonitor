@@ -188,6 +188,8 @@ export const ja: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': 'このタスク用のカスタム指示...',
     'pipeline.skipPermissions': '権限をスキップ',
     'pipeline.chrome': 'Chromeを有効化 (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': '実行待ちのタスクがありません。まずタスクを追加してください。',
     'pipeline.addTaskBtn': 'タスク追加',
     'pipeline.configTitle': 'マネージャー設定',
     'pipeline.defaultDir': 'デフォルト作業ディレクトリ',

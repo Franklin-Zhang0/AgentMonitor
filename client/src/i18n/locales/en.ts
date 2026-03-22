@@ -192,6 +192,8 @@ export const en: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': 'Custom instructions for this task...',
     'pipeline.skipPermissions': 'Skip permissions',
     'pipeline.chrome': 'Enable Chrome (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': 'No pending tasks to run. Add tasks first.',
     'pipeline.addTaskBtn': 'Add Task',
     'pipeline.configTitle': 'Manager Configuration',
     'pipeline.defaultDir': 'Default Working Directory',

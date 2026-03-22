@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Tests](https://img.shields.io/badge/Tests-40%20passing-22c55e?style=for-the-badge)](server/__tests__)
+[![Tests](https://img.shields.io/badge/Tests-127%20passing-22c55e?style=for-the-badge)](server/__tests__)
 [![Docs](https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge&logo=vitepress&logoColor=white)](https://ericonaldo.github.io/AgentMonitor/)
 
 一个 Agent 监控和调度仪表盘，用于在同一界面运行、监控和管理 **Claude Code** 和 **Codex** 智能体。通过可克隆任务模板，轻松创建智能体。实时流式输出、任务流水线、邮件 / WhatsApp / Slack 通知 —— 全部在浏览器中完成。

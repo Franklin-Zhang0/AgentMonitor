@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type PipelineTask, type MetaAgentConfig, type AgentProvider } from '../api/client';
+import { api, type PipelineTask, type MetaAgentConfig, type AgentProvider, type Template } from '../api/client';
 import { getSocket } from '../api/socket';
 import { useTranslation } from '../i18n';
 
@@ -23,6 +23,8 @@ export function Pipeline() {
   const [newClaudeMd, setNewClaudeMd] = useState('');
   const [newSkipPerms, setNewSkipPerms] = useState(true);
   const [newChrome, setNewChrome] = useState(false);
+  const [newFullAuto, setNewFullAuto] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
 
   // Config form
   const [cfgClaudeMd, setCfgClaudeMd] = useState('');
@@ -36,12 +38,14 @@ export function Pipeline() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [taskData, cfgData] = await Promise.all([
+      const [taskData, cfgData, tmplData] = await Promise.all([
         api.getTasks(),
         api.getMetaConfig(),
+        api.getTemplates(),
       ]);
       setTasks(taskData);
       setMetaConfig(cfgData);
+      setTemplates(tmplData);
     } catch (err) {
       console.error('Failed to fetch pipeline data:', err);
     } finally {
@@ -75,7 +79,11 @@ export function Pipeline() {
       provider: newProvider,
       model: newModel.trim() || undefined,
       claudeMd: newClaudeMd.trim() || undefined,
-      flags: { dangerouslySkipPermissions: newSkipPerms, chrome: newChrome || undefined },
+      flags: {
+        dangerouslySkipPermissions: newSkipPerms,
+        chrome: (newProvider === 'claude' && newChrome) || undefined,
+        fullAuto: (newProvider === 'codex' && newFullAuto) || undefined,
+      },
       order: newOrder !== '' ? newOrder : undefined,
     });
     setShowAddTask(false);
@@ -87,6 +95,7 @@ export function Pipeline() {
     setNewClaudeMd('');
     setNewSkipPerms(true);
     setNewChrome(false);
+    setNewFullAuto(false);
     fetchData();
   };
 
@@ -106,6 +115,11 @@ export function Pipeline() {
   };
 
   const handleStartMeta = async () => {
+    const pendingTasks = tasks.filter(t => t.status === 'pending');
+    if (pendingTasks.length === 0) {
+      alert(t('pipeline.noTasksWarning'));
+      return;
+    }
     await api.startMetaAgent();
     fetchData();
   };
@@ -346,7 +360,24 @@ export function Pipeline() {
               </div>
             </div>
             <div className="form-group">
-              <label>{t('pipeline.claudeMdOptional')}</label>
+              <label>
+                {t('pipeline.claudeMdOptional')}{' '}
+                {templates.length > 0 && (
+                  <select
+                    style={{ marginLeft: 8, padding: '2px 4px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', fontSize: 12 }}
+                    onChange={(e) => {
+                      const tmpl = templates.find(t => t.id === e.target.value);
+                      if (tmpl) setNewClaudeMd(tmpl.content);
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>{t('create.loadTemplate')}</option>
+                    {templates.map((tmpl) => (
+                      <option key={tmpl.id} value={tmpl.id}>{tmpl.name}</option>
+                    ))}
+                  </select>
+                )}
+              </label>
               <textarea
                 value={newClaudeMd}
                 onChange={(e) => setNewClaudeMd(e.target.value)}
@@ -361,16 +392,30 @@ export function Pipeline() {
                   checked={newSkipPerms}
                   onChange={(e) => setNewSkipPerms(e.target.checked)}
                 />
-                {t('pipeline.skipPermissions')}
+                {newProvider === 'claude'
+                  ? t('pipeline.skipPermissions')
+                  : '--dangerously-bypass-approvals-and-sandbox'}
               </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={newChrome}
-                  onChange={(e) => setNewChrome(e.target.checked)}
-                />
-                {t('pipeline.chrome')}
-              </label>
+              {newProvider === 'codex' && (
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={newFullAuto}
+                    onChange={(e) => setNewFullAuto(e.target.checked)}
+                  />
+                  {t('pipeline.fullAuto')}
+                </label>
+              )}
+              {newProvider === 'claude' && (
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={newChrome}
+                    onChange={(e) => setNewChrome(e.target.checked)}
+                  />
+                  {t('pipeline.chrome')}
+                </label>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn" onClick={handleAddTask} disabled={!newName.trim() || !newPrompt.trim()}>

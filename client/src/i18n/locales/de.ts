@@ -188,6 +188,8 @@ export const de: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': 'Benutzerdefinierte Anweisungen für diese Aufgabe...',
     'pipeline.skipPermissions': 'Berechtigungen überspringen',
     'pipeline.chrome': 'Chrome aktivieren (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': 'Keine ausstehenden Aufgaben. Fügen Sie zuerst Aufgaben hinzu.',
     'pipeline.addTaskBtn': 'Aufgabe Hinzufügen',
     'pipeline.configTitle': 'Manager-Konfiguration',
     'pipeline.defaultDir': 'Standard-Arbeitsverzeichnis',

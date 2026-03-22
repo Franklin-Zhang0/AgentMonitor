@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Tests](https://img.shields.io/badge/Tests-40%20passing-22c55e?style=for-the-badge)](server/__tests__)
+[![Tests](https://img.shields.io/badge/Tests-127%20passing-22c55e?style=for-the-badge)](server/__tests__)
 [![Docs](https://img.shields.io/badge/Docs-VitePress-646cff?style=for-the-badge&logo=vitepress&logoColor=white)](https://ericonaldo.github.io/AgentMonitor/)
 
 A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents in one place. Create agents with a cloneable task template. Real-time streaming, task pipelines, and notifications via Email / WhatsApp / Slack — all from your browser.
@@ -37,13 +37,13 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 
 ### Spin Up Agents Instantly with Cloneable Templates
 - **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, CLAUDE.md) to instantly spin up a new one with the same setup — no re-entering settings
-- **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents
+- **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks
 - **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects an existing CLAUDE.md and offers to load it
 - **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
 
 ### Multi-Agent Orchestration
 - **Unified dashboard** — Create, monitor, and manage Claude Code and Codex agents from a single interface
-- **Task pipelines** — Define sequential and parallel task workflows; the built-in Meta Agent Manager automates execution end-to-end
+- **Task pipelines** — Define sequential and parallel task workflows; the built-in Meta Agent Manager automates execution end-to-end (validates pending tasks before start)
 - **Git worktree isolation** — When the working directory is a git repo, each agent operates in its own worktree branch, preventing conflicts. Non-git directories are used directly with no worktree overhead
 
 ### Real-Time Monitoring & Interaction

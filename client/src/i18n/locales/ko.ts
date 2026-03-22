@@ -188,6 +188,8 @@ export const ko: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': '이 작업의 사용자 정의 지침...',
     'pipeline.skipPermissions': '권한 건너뛰기',
     'pipeline.chrome': 'Chrome 활성화 (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': '실행 대기 중인 작업이 없습니다. 먼저 작업을 추가하세요.',
     'pipeline.addTaskBtn': '작업 추가',
     'pipeline.configTitle': '관리자 구성',
     'pipeline.defaultDir': '기본 작업 디렉토리',

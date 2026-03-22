@@ -134,6 +134,12 @@ export function taskRoutes(store: AgentStore, metaAgent: MetaAgentManager): Rout
   });
 
   router.post('/meta/start', (_req, res) => {
+    const tasks = store.getAllTasks();
+    const pendingTasks = tasks.filter(t => t.status === 'pending');
+    if (pendingTasks.length === 0) {
+      res.status(400).json({ error: 'No pending tasks to run' });
+      return;
+    }
     metaAgent.start();
     res.json({ ok: true, running: true });
   });

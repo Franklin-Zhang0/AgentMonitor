@@ -103,7 +103,15 @@ describe('Task Routes', () => {
     expect(body.running).toBe(false);
   });
 
+  it('rejects start with no pending tasks', async () => {
+    const res = await request(app, 'POST', '/api/tasks/meta/start');
+    expect(res.status).toBe(400);
+  });
+
   it('starts and stops meta agent', async () => {
+    // Create a pending task so start is allowed
+    await request(app, 'POST', '/api/tasks', { name: 'Test Task', prompt: 'Do something' });
+
     let res = await request(app, 'POST', '/api/tasks/meta/start');
     expect((res.body as { running: boolean }).running).toBe(true);
 

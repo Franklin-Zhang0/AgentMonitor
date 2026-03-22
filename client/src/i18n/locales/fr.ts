@@ -188,6 +188,8 @@ export const fr: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': 'Instructions personnalisées pour cette tâche...',
     'pipeline.skipPermissions': 'Ignorer les permissions',
     'pipeline.chrome': 'Activer Chrome (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': 'Aucune tâche en attente. Ajoutez des tâches d\'abord.',
     'pipeline.addTaskBtn': 'Ajouter la Tâche',
     'pipeline.configTitle': 'Configuration du Gestionnaire',
     'pipeline.defaultDir': 'Répertoire de travail par défaut',

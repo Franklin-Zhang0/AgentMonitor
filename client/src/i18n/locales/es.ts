@@ -188,6 +188,8 @@ export const es: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': 'Instrucciones personalizadas para esta tarea...',
     'pipeline.skipPermissions': 'Omitir permisos',
     'pipeline.chrome': 'Activar Chrome (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': 'No hay tareas pendientes. Agregue tareas primero.',
     'pipeline.addTaskBtn': 'Agregar Tarea',
     'pipeline.configTitle': 'Configuración del Gestor',
     'pipeline.defaultDir': 'Directorio de Trabajo Predeterminado',

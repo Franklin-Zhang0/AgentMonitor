@@ -192,6 +192,8 @@ export const zh: Record<string, string> = {
     'pipeline.claudeMdPlaceholder': '此任务的自定义指令...',
     'pipeline.skipPermissions': '跳过权限检查',
     'pipeline.chrome': '启用 Chrome (--chrome)',
+    'pipeline.fullAuto': '--full-auto',
+    'pipeline.noTasksWarning': '没有待执行的任务。请先添加任务。',
     'pipeline.addTaskBtn': '添加任务',
     'pipeline.configTitle': '管理器配置',
     'pipeline.defaultDir': '默认工作目录',
