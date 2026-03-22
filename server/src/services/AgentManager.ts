@@ -164,6 +164,7 @@ export class AgentManager extends EventEmitter {
       projectName: basename(agentConfig.directory),
       mcpServers: this.parseMcpServers(agentConfig.flags.mcpConfig),
       currentTask: agentConfig.prompt.length > 120 ? agentConfig.prompt.slice(0, 120) + '...' : agentConfig.prompt,
+      originalPrompt: agentConfig.prompt,
     };
 
     this.store.saveAgent(agent);
