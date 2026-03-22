@@ -97,13 +97,14 @@ export function AgentChat() {
     { cmd: '/usage', desc: t('chat.slashUsage') },
   ];
 
-  const fetchAgent = useCallback(async () => {
+  const fetchAgent = useCallback(async (forceOverwrite = false) => {
     if (!id) return;
     try {
       const data = await api.getAgent(id);
       setAgent(prev => {
         // Don't overwrite optimistic messages (pending-* ids) if server hasn't caught up
-        if (prev && data.messages.length < prev.messages.length) {
+        // But allow overwrite when explicitly forced (e.g. after restore)
+        if (!forceOverwrite && prev && data.messages.length < prev.messages.length) {
           return { ...prev, status: data.status as Agent['status'], costUsd: data.costUsd, tokenUsage: data.tokenUsage };
         }
         return data;
@@ -853,7 +854,7 @@ export function AgentChat() {
                     if (result.restoredPrompt) {
                       setInput(result.restoredPrompt);
                     }
-                    await fetchAgent();
+                    await fetchAgent(true);
                   }
                   setShowHistoryPicker(false);
                   setHistoryRestoreTarget(null);
