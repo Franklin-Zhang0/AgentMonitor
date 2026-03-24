@@ -1,0 +1,147 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { AgentStore } from '../src/store/AgentStore.js';
+import { AgentManager } from '../src/services/AgentManager.js';
+import type { Agent } from '../src/models/Agent.js';
+
+describe('AgentManager restoreConversation', () => {
+  let tmpDir: string;
+  let store: AgentStore;
+  let manager: AgentManager;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-restore-test-'));
+    store = new AgentStore(tmpDir);
+    manager = new AgentManager(store);
+  });
+
+  afterEach(() => {
+    const stuckCheckInterval = (manager as unknown as { stuckCheckInterval?: ReturnType<typeof setInterval> | null }).stuckCheckInterval;
+    if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+    vi.restoreAllMocks();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('clears session, truncates JSONL, and builds conversation seed after restore', async () => {
+    const agent: Agent = {
+      id: 'agent-1',
+      name: 'Restore Test',
+      status: 'running',
+      config: {
+        provider: 'claude',
+        directory: tmpDir,
+        prompt: 'original prompt',
+        flags: {},
+      },
+      messages: [
+        { id: 'u1', role: 'user', content: 'first prompt', timestamp: 1 },
+        { id: 'a1', role: 'assistant', content: 'first reply', timestamp: 2 },
+        { id: 'u2', role: 'user', content: 'second prompt', timestamp: 3 },
+        { id: 'a2', role: 'assistant', content: 'second reply', timestamp: 4 },
+      ],
+      lastActivity: 4,
+      createdAt: 1,
+      sessionId: 'session-123',
+    };
+    store.saveAgent(agent);
+
+    const jsonlPath = path.join(tmpDir, 'session-123.jsonl');
+    fs.writeFileSync(jsonlPath, [
+      JSON.stringify({ type: 'user', message: { content: 'first prompt' } }),
+      JSON.stringify({ type: 'assistant', message: { content: 'first reply' } }),
+      JSON.stringify({ type: 'user', message: { content: 'second prompt' } }),
+      JSON.stringify({ type: 'assistant', message: { content: 'second reply' } }),
+      '',
+    ].join('\n'));
+
+    vi.spyOn(manager as unknown as { findSessionJsonlPath: (sessionId: string) => string | undefined }, 'findSessionJsonlPath')
+      .mockReturnValue(jsonlPath);
+
+    const restoredPrompt = await manager.restoreConversation(agent.id, 1, false, true);
+
+    expect(restoredPrompt).toBe('second prompt');
+
+    const saved = store.getAgent(agent.id);
+    expect(saved).toBeDefined();
+    expect(saved?.messages.map(msg => msg.content)).toEqual(['first prompt', 'first reply']);
+    expect(saved?.status).toBe('stopped');
+    // Session cleared — truncated JSONL is not valid for --resume
+    expect(saved?.sessionId).toBeUndefined();
+    expect(saved?.config.flags.resume).toBeUndefined();
+    // Conversation seed built from retained messages
+    expect(saved?.restoredConversationSeed).toContain('first prompt');
+    expect(saved?.restoredConversationSeed).toContain('first reply');
+
+    const truncatedJsonl = fs.readFileSync(jsonlPath, 'utf-8');
+    expect(truncatedJsonl).toContain('first prompt');
+    expect(truncatedJsonl).toContain('first reply');
+    expect(truncatedJsonl).not.toContain('second prompt');
+    expect(truncatedJsonl).not.toContain('second reply');
+  });
+
+  it('seeds the next resumed prompt with restored conversation context', () => {
+    const agent: Agent = {
+      id: 'agent-2',
+      name: 'Resume Seed Test',
+      status: 'stopped',
+      config: {
+        provider: 'claude',
+        directory: tmpDir,
+        prompt: 'old prompt',
+        flags: {},
+      },
+      messages: [],
+      lastActivity: 1,
+      createdAt: 1,
+      restoredConversationSeed: 'Conversation seed text',
+    };
+    store.saveAgent(agent);
+
+    const startProcessSpy = vi.spyOn(manager as unknown as { startProcess: (agent: Agent) => void }, 'startProcess')
+      .mockImplementation(() => {});
+
+    manager.sendMessage(agent.id, 'follow-up question');
+
+    const saved = store.getAgent(agent.id);
+    expect(saved?.config.prompt).toContain('Conversation seed text');
+    expect(saved?.config.prompt).toContain('follow-up question');
+    expect(saved?.restoredConversationSeed).toBeUndefined();
+    expect(saved?.config.flags.resume).toBeUndefined();
+    expect(saved?.sessionId).toBeUndefined();
+    expect(startProcessSpy).toHaveBeenCalledOnce();
+  });
+
+  it('routes code restore to the selected turn snapshot', async () => {
+    const agent: Agent = {
+      id: 'agent-3',
+      name: 'Code Restore Test',
+      status: 'running',
+      config: {
+        provider: 'claude',
+        directory: tmpDir,
+        prompt: 'old prompt',
+        flags: {},
+      },
+      worktreePath: tmpDir,
+      messages: [],
+      lastActivity: 1,
+      createdAt: 1,
+      codeSnapshots: [
+        { beforeTurnIndex: 0, commit: 'base-commit' },
+        { beforeTurnIndex: 1, commit: 'turn-1-commit' },
+      ],
+    };
+    store.saveAgent(agent);
+
+    const restoreAgentCodeSpy = vi.spyOn(
+      manager as unknown as { restoreAgentCode: (agent: Agent, beforeTurnIndex: number) => void },
+      'restoreAgentCode',
+    ).mockImplementation(() => {});
+
+    await manager.restoreConversation(agent.id, 1, true, false);
+
+    expect(restoreAgentCodeSpy).toHaveBeenCalledWith(expect.objectContaining({ id: agent.id }), 1);
+  });
+});

@@ -55,4 +55,6 @@ export interface Agent {
   currentTask?: string;
   sessionId?: string;
   originalPrompt?: string;
+  restoredConversationSeed?: string;
+  codeSnapshots?: Array<{ beforeTurnIndex: number; commit: string }>;
 }
