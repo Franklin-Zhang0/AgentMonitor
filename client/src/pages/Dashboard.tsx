@@ -133,20 +133,30 @@ export function Dashboard() {
               {t('dashboard.stopAll')}
             </button>
           )}
-          <button
-            className={`btn ${showExternal ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => {
-              setShowExternal(prev => {
-                const next = !prev;
-                localStorage.setItem('agentmonitor-show-external', String(next));
-                return next;
-              });
-            }}
-            title={showExternal ? 'Hide external agents' : 'Show external agents'}
-            style={{ fontSize: 13 }}
-          >
-            EXT
-          </button>
+          {(() => {
+            const extCount = agents.filter(a => a.source === 'external').length;
+            if (extCount === 0) return null;
+            return (
+              <button
+                className={`btn ${showExternal ? 'btn-outline' : 'btn-outline'}`}
+                onClick={() => {
+                  setShowExternal(prev => {
+                    const next = !prev;
+                    localStorage.setItem('agentmonitor-show-external', String(next));
+                    return next;
+                  });
+                }}
+                style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: showExternal ? 'var(--green, #22c55e)' : 'var(--text-muted)',
+                  display: 'inline-block',
+                }} />
+                {showExternal ? `External (${extCount})` : `External (${extCount} hidden)`}
+              </button>
+            );
+          })()}
           <button className="btn btn-outline" onClick={() => setShowSettings(true)} title={t('dashboard.settings')} style={{ fontSize: 30, lineHeight: 1 }}>
             &#9881;
           </button>
