@@ -9,6 +9,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [retentionHours, setRetentionHours] = useState(24);
+  const [showExternal, setShowExternal] = useState(() => localStorage.getItem('agentmonitor-show-external') !== 'false');
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -132,6 +133,20 @@ export function Dashboard() {
               {t('dashboard.stopAll')}
             </button>
           )}
+          <button
+            className={`btn ${showExternal ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => {
+              setShowExternal(prev => {
+                const next = !prev;
+                localStorage.setItem('agentmonitor-show-external', String(next));
+                return next;
+              });
+            }}
+            title={showExternal ? 'Hide external agents' : 'Show external agents'}
+            style={{ fontSize: 13 }}
+          >
+            EXT
+          </button>
           <button className="btn btn-outline" onClick={() => setShowSettings(true)} title={t('dashboard.settings')} style={{ fontSize: 30, lineHeight: 1 }}>
             &#9881;
           </button>
@@ -144,7 +159,7 @@ export function Dashboard() {
         </div>
       ) : (
         <div className="card-grid">
-          {agents.map((agent) => (
+          {agents.filter(a => showExternal || a.source !== 'external').map((agent) => (
             <div
               key={agent.id}
               className="card"
