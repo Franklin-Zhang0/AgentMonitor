@@ -41,6 +41,9 @@ export const zh: Record<string, string> = {
     'dashboard.settingsSaved': '设置已保存',
     'dashboard.clone': '克隆',
     'dashboard.cloneAgent': '克隆此代理',
+    'dashboard.externalShow': '外部代理 ({{count}})',
+    'dashboard.externalHidden': '外部代理 ({{count}} 已隐藏)',
+    'dashboard.externalBadge': '外部',
 
     // Create Agent
     'create.title': '创建代理',

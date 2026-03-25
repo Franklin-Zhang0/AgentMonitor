@@ -46,6 +46,11 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Task pipelines** — Define sequential and parallel task workflows; the built-in Meta Agent Manager automates execution end-to-end (validates pending tasks before start)
 - **Git worktree isolation** — When the working directory is a git repo, each agent operates in its own worktree branch, preventing conflicts. Non-git directories are used directly with no worktree overhead
 
+### External Agent Discovery
+- **Auto-detect running agents** — Claude Code and Codex processes started outside the dashboard (e.g., from a terminal) are automatically discovered and displayed with an **EXT** badge
+- **Full integration** — External agents can be monitored, chatted with, and managed just like agents created through the UI
+- **Toggle visibility** — Show or hide external agents on the dashboard with a single click; preference persists across sessions
+
 ### Real-Time Monitoring & Interaction
 - **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay), with automatic polling fallback
 - **PTY web terminal** — Toggle a fully interactive shell (node-pty + xterm.js) in the agent's working directory — run any command, launch `claude`, or debug directly from the browser

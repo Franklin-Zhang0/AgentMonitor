@@ -41,6 +41,9 @@ export const ja: Record<string, string> = {
     'dashboard.settingsSaved': '設定を保存しました',
     'dashboard.clone': '複製',
     'dashboard.cloneAgent': 'このエージェントを複製',
+    'dashboard.externalShow': '外部 ({{count}})',
+    'dashboard.externalHidden': '外部 ({{count}} 非表示)',
+    'dashboard.externalBadge': '外部',
 
     // Create Agent
     'create.title': 'エージェント作成',

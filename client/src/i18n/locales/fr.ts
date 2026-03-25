@@ -41,6 +41,9 @@ export const fr: Record<string, string> = {
     'dashboard.settingsSaved': 'Paramètres enregistrés',
     'dashboard.clone': 'Cloner',
     'dashboard.cloneAgent': 'Cloner cet agent',
+    'dashboard.externalShow': 'Externes ({{count}})',
+    'dashboard.externalHidden': 'Externes ({{count}} masqués)',
+    'dashboard.externalBadge': 'EXT',
 
     // Create Agent
     'create.title': 'Créer un Agent',

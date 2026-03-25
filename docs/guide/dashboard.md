@@ -23,6 +23,14 @@ Each agent is displayed as a rich information card showing:
 - **Delete**: Remove a stopped agent (click the X button)
 - **Settings**: Configure auto-delete retention for stopped agents
 
+## External Agent Discovery
+
+Agent Monitor automatically discovers Claude Code and Codex processes running outside the dashboard (e.g., started from a terminal). These are displayed on the dashboard with an **EXT** badge and can be monitored, chatted with, and managed just like agents created through the UI.
+
+- **Toggle visibility**: Click the **External (N)** button in the dashboard toolbar to show or hide external agents. The preference is persisted across sessions.
+- **Live updates**: External agents stream messages and status changes in real time, just like managed agents.
+- **Source indicator**: External agents are marked with `source: 'external'` and display a purple "EXT" badge on their card.
+
 ## Auto-Delete Expired Agents
 
 Stopped agents can be automatically cleaned up after a configurable retention period. Open **Settings** from the dashboard to set the retention time in hours (default: 24 hours). Set to 0 to keep agents forever. The server checks for expired agents every 60 seconds.

@@ -153,7 +153,7 @@ export function Dashboard() {
                   background: showExternal ? 'var(--green, #22c55e)' : 'var(--text-muted)',
                   display: 'inline-block',
                 }} />
-                {showExternal ? `External (${extCount})` : `External (${extCount} hidden)`}
+                {showExternal ? t('dashboard.externalShow', { count: extCount }) : t('dashboard.externalHidden', { count: extCount })}
               </button>
             );
           })()}
@@ -181,7 +181,7 @@ export function Dashboard() {
                     {(agent.config.provider || 'claude').toUpperCase()}
                   </span>
                   {agent.source === 'external' && (
-                    <span className="provider-badge" style={{ background: '#6366f1', marginLeft: 4 }}>EXT</span>
+                    <span className="provider-badge" style={{ background: '#6366f1', marginLeft: 4 }}>{t('dashboard.externalBadge')}</span>
                   )}
                   {' '}{agent.name}
                 </span>

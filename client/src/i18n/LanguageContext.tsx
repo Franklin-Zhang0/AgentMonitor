@@ -4,7 +4,7 @@ import { translations, type Language } from './translations';
 interface LanguageContextValue {
   lang: Language;
   setLang: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -30,8 +30,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string): string => {
-      return translations[lang][key] ?? key;
+    (key: string, params?: Record<string, string | number>): string => {
+      let value = translations[lang][key] ?? key;
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          value = value.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), String(v));
+        }
+      }
+      return value;
     },
     [lang],
   );

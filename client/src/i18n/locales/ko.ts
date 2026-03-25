@@ -41,6 +41,9 @@ export const ko: Record<string, string> = {
     'dashboard.settingsSaved': '설정이 저장되었습니다',
     'dashboard.clone': '복제',
     'dashboard.cloneAgent': '이 에이전트 복제',
+    'dashboard.externalShow': '외부 ({{count}})',
+    'dashboard.externalHidden': '외부 ({{count}} 숨김)',
+    'dashboard.externalBadge': '외부',
 
     // Create Agent
     'create.title': '에이전트 생성',
