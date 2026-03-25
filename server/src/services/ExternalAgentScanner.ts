@@ -172,6 +172,8 @@ export class ExternalAgentScanner extends EventEmitter {
         if (args.includes('grep') || args.includes(' ps ')) continue;
         // Skip AgentMonitor's own server
         if (args.includes('server/src/index')) continue;
+        // Skip agents started by AgentMonitor (they use stream-json for programmatic IO)
+        if (args.includes('stream-json')) continue;
 
         const parsed = this.parseArgs(args, pid);
         if (parsed) results.push(parsed);
@@ -183,12 +185,17 @@ export class ExternalAgentScanner extends EventEmitter {
   }
 
   private isClaudeOrCodex(args: string): boolean {
-    // Match: node/.../claude, claude -p, codex exec, etc.
-    // But NOT: "claude-code-guide", "claude.md", shell-snapshot scripts
-    return (
-      (/\bclaude\b/.test(args) && (args.includes(' -p ') || args.includes('--resume') || args.includes('stream-json'))) ||
-      (/\bcodex\b/.test(args) && args.includes('exec'))
-    );
+    // Match claude CLI invocations (interactive or with flags)
+    // Exclude: chrome-native-host, shell-snapshot scripts, claude-code-guide
+    if (/chrome-native-host|shell-snapshot|claude-code-guide|claude\.md/.test(args)) return false;
+    if (/\bclaude\b/.test(args) && (
+      args.includes('--dangerously-skip-permissions') ||
+      args.includes('--permission-mode') ||
+      args.includes('--resume') ||
+      args.includes(' -p ')
+    )) return true;
+    if (/\bcodex\b/.test(args) && args.includes('exec')) return true;
+    return false;
   }
 
   private parseArgs(args: string, pid: number): DiscoveredProcess | null {
