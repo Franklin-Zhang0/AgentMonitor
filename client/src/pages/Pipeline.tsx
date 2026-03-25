@@ -193,6 +193,9 @@ export function Pipeline() {
       <div className="page-header">
         <h1 className="page-title">{t('pipeline.title')}</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn btn-sm" onClick={() => setShowAddTask(true)}>
+            {t('pipeline.addTask')}
+          </button>
           <span
             style={{
               fontSize: 13,
@@ -216,9 +219,6 @@ export function Pipeline() {
           )}
           <button className="btn btn-sm btn-outline" onClick={openConfig}>
             {t('pipeline.configure')}
-          </button>
-          <button className="btn btn-sm" onClick={() => setShowAddTask(true)}>
-            {t('pipeline.addTask')}
           </button>
           {tasks.some(tsk => tsk.status === 'completed' || tsk.status === 'failed') && (
             <button className="btn btn-sm btn-outline" onClick={handleClearCompleted}>
