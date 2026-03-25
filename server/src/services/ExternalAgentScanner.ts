@@ -284,16 +284,34 @@ export class ExternalAgentScanner extends EventEmitter {
     return agent;
   }
 
+  /** Encode a path the same way Claude CLI does for project directory names. */
+  private encodeProjectPath(cwdPath: string): string {
+    // Claude CLI replaces all non-alphanumeric chars (except hyphen) with hyphens
+    return cwdPath.replace(/[^a-zA-Z0-9-]/g, '-');
+  }
+
   private findSessionFile(proc: DiscoveredProcess): { sessionId: string; jsonlPath: string } | null {
     if (!proc.cwd) return null;
     const claudeDir = resolve(homedir(), '.claude', 'projects');
     if (!existsSync(claudeDir)) return null;
 
-    // Encode cwd to match Claude's directory naming
-    const encoded = proc.cwd.replace(/\//g, '-');
-    const projectDir = resolve(claudeDir, encoded);
+    // Try encoded path first, then scan all project dirs for a match
+    const encoded = this.encodeProjectPath(proc.cwd);
+    let projectDir = resolve(claudeDir, encoded);
 
-    if (!existsSync(projectDir)) return null;
+    if (!existsSync(projectDir)) {
+      // Fallback: scan project dirs that start with the expected prefix
+      const cwdBase = basename(proc.cwd).replace(/[^a-zA-Z0-9-]/g, '-');
+      try {
+        const dirs = readdirSync(claudeDir);
+        const match = dirs.find(d => d.endsWith(cwdBase) || d.includes(cwdBase));
+        if (match) {
+          projectDir = resolve(claudeDir, match);
+        } else {
+          return null;
+        }
+      } catch { return null; }
+    }
 
     // If we have a session ID, look for that specific file
     if (proc.sessionId) {
@@ -456,7 +474,7 @@ export class ExternalAgentScanner extends EventEmitter {
     const claudeDir = resolve(homedir(), '.claude', 'projects');
     if (!existsSync(claudeDir)) return null;
 
-    const encoded = cwd.replace(/\//g, '-');
+    const encoded = this.encodeProjectPath(cwd);
     const jsonlPath = resolve(claudeDir, encoded, `${sessionId}.jsonl`);
     if (existsSync(jsonlPath)) return jsonlPath;
 
