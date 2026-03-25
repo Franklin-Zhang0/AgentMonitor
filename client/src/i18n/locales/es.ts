@@ -2,7 +2,7 @@ export const es: Record<string, string> = {
     // Nav
     'nav.brand': 'Agent Monitor',
     'nav.dashboard': 'Panel',
-    'nav.pipeline': 'Gestor de Agentes',
+    'nav.pipeline': 'Meta Agente',
     'nav.newAgent': 'Nuevo Agente',
     'nav.templates': 'Plantillas',
     'nav.help': 'Documentación',
@@ -163,7 +163,7 @@ export const es: Record<string, string> = {
     'templates.empty': 'Aún no hay plantillas. Crea una para comenzar.',
 
     // Pipeline
-    'pipeline.title': 'Gestor de Agentes',
+    'pipeline.title': 'Meta Agente',
     'pipeline.manager': 'Gestor:',
     'pipeline.running': 'En ejecución',
     'pipeline.stopped': 'Detenido',

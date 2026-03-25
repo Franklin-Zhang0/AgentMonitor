@@ -2,7 +2,7 @@ export const en: Record<string, string> = {
     // Nav
     'nav.brand': 'Agent Monitor',
     'nav.dashboard': 'Dashboard',
-    'nav.pipeline': 'Agent Manager',
+    'nav.pipeline': 'Meta Agent',
     'nav.newAgent': 'New Agent',
     'nav.templates': 'Templates',
     'nav.help': 'Docs',
@@ -167,7 +167,7 @@ export const en: Record<string, string> = {
     'templates.empty': 'No templates yet. Create one to get started.',
 
     // Pipeline
-    'pipeline.title': 'Agent Manager',
+    'pipeline.title': 'Meta Agent',
     'pipeline.manager': 'Manager:',
     'pipeline.running': 'Running',
     'pipeline.stopped': 'Stopped',
