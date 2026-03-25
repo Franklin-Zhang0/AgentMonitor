@@ -15,7 +15,8 @@ import { MetaAgentManager } from './services/MetaAgentManager.js';
 import { EmailNotifier } from './services/EmailNotifier.js';
 import { WhatsAppNotifier } from './services/WhatsAppNotifier.js';
 import { SlackNotifier } from './services/SlackNotifier.js';
-import { agentRoutes, settingsRoutes } from './routes/agents.js';
+import { agentRoutes, settingsRoutes, externalRoutes } from './routes/agents.js';
+import { ExternalAgentScanner } from './services/ExternalAgentScanner.js';
 import { templateRoutes } from './routes/templates.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { directoryRoutes } from './routes/directories.js';
@@ -69,8 +70,16 @@ export function createApp() {
   const manager = new AgentManager(store, undefined, emailNotifier, whatsappNotifier, slackNotifier, feishuNotifier);
   const metaAgent = new MetaAgentManager(store, manager, emailNotifier, whatsappNotifier, slackNotifier, feishuNotifier);
 
+  // External agent scanner — discovers claude/codex processes not started by the monitor
+  const externalScanner = new ExternalAgentScanner(
+    store,
+    () => manager.getManagedPids(),
+    { scanIntervalMs: 15_000, autoImport: true, maxMessages: 200 },
+  );
+
   // REST routes
   app.use('/api/agents', agentRoutes(manager));
+  app.use('/api/external', externalRoutes(externalScanner));
   app.use('/api/templates', templateRoutes(store));
   app.use('/api/sessions', sessionRoutes());
   app.use('/api/directories', directoryRoutes());
@@ -148,6 +157,19 @@ export function createApp() {
   metaAgent.on('status', (status: string) => {
     io.emit('meta:status', { running: status === 'running' });
   });
+
+  // External agent scanner — forward events to socket.io for live dashboard updates
+  externalScanner.on('agent:update', (agentId: string, agent: unknown) => {
+    io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent });
+    io.emit('agent:snapshot', { agentId, agent });
+  });
+  externalScanner.on('agent:status', (agentId: string, status: string) => {
+    io.to(`agent:${agentId}`).emit('agent:status', { agentId, status });
+  });
+  externalScanner.on('agent:delta', (agentId: string, delta: unknown) => {
+    io.to(`agent:${agentId}`).emit('agent:delta', { agentId, ...(delta as Record<string, unknown>) });
+  });
+  externalScanner.start();
 
   // Auto-cleanup expired stopped/error agents every 60s
   const cleanupInterval = setInterval(async () => {

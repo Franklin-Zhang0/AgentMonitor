@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AgentManager } from '../services/AgentManager.js';
 import type { AgentStore } from '../store/AgentStore.js';
+import type { ExternalAgentScanner } from '../services/ExternalAgentScanner.js';
 
 export function settingsRoutes(store: AgentStore): Router {
   const router = Router();
@@ -153,6 +154,49 @@ export function agentRoutes(manager: AgentManager): Router {
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
+  });
+
+  return router;
+}
+
+export function externalRoutes(scanner: ExternalAgentScanner): Router {
+  const router = Router();
+
+  // Trigger a scan and return results
+  router.post('/scan', (_req, res) => {
+    const result = scanner.scan();
+    res.json(result);
+  });
+
+  // List candidate processes not yet imported
+  router.get('/candidates', (_req, res) => {
+    res.json(scanner.getCandidates());
+  });
+
+  // Import a specific process by PID
+  router.post('/import', (req, res) => {
+    const { pid } = req.body;
+    if (typeof pid !== 'number') {
+      res.status(400).json({ error: 'pid (number) is required' });
+      return;
+    }
+    const agent = scanner.importByPid(pid);
+    if (!agent) {
+      res.status(404).json({ error: 'Process not found or already tracked' });
+      return;
+    }
+    res.json(agent);
+  });
+
+  // Dismiss a PID so it won't appear in candidates
+  router.post('/dismiss', (req, res) => {
+    const { pid } = req.body;
+    if (typeof pid !== 'number') {
+      res.status(400).json({ error: 'pid (number) is required' });
+      return;
+    }
+    scanner.dismiss(pid);
+    res.json({ ok: true });
   });
 
   return router;

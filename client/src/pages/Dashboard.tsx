@@ -155,6 +155,9 @@ export function Dashboard() {
                   <span className={`provider-badge provider-${agent.config.provider || 'claude'}`}>
                     {(agent.config.provider || 'claude').toUpperCase()}
                   </span>
+                  {agent.source === 'external' && (
+                    <span className="provider-badge" style={{ background: '#6366f1', marginLeft: 4 }}>EXT</span>
+                  )}
                   {' '}{agent.name}
                 </span>
                 <span className={`status status-${agent.status}`}>

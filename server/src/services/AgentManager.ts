@@ -38,9 +38,11 @@ export class AgentManager extends EventEmitter {
     this.slackNotifier = slackNotifier || new SlackNotifier();
     this.feishuNotifier = feishuNotifier || new FeishuNotifier('', '');
 
-    // On startup, mark any agents that were left in running/waiting_input as
+    // On startup, mark any monitor-owned agents that were left in running/waiting_input as
     // stopped — their processes died when the server restarted.
+    // External agents are handled by ExternalAgentScanner (it checks if PID is still alive).
     for (const agent of this.store.getAllAgents()) {
+      if (agent.source === 'external') continue;
       if (agent.status === 'running' || agent.status === 'waiting_input') {
         agent.status = 'stopped';
         agent.pid = undefined;
@@ -810,6 +812,21 @@ export class AgentManager extends EventEmitter {
 
   getAllAgents(): Agent[] {
     return this.store.getAllAgents();
+  }
+
+  /** Return PIDs of all processes managed by this AgentManager (not external). */
+  getManagedPids(): Set<number> {
+    const pids = new Set<number>();
+    for (const [, proc] of this.processes) {
+      if (proc.pid) pids.add(proc.pid);
+    }
+    // Also include stored PIDs for agents we own
+    for (const agent of this.store.getAllAgents()) {
+      if (agent.source !== 'external' && agent.pid) {
+        pids.add(agent.pid);
+      }
+    }
+    return pids;
   }
 
   async cleanupExpiredAgents(retentionMs: number): Promise<number> {

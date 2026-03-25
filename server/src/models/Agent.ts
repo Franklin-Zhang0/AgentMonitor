@@ -55,4 +55,5 @@ export interface Agent {
   currentTask?: string;
   sessionId?: string;
   originalPrompt?: string;
+  source?: 'monitor' | 'external';
 }
