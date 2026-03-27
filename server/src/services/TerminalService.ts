@@ -21,7 +21,11 @@ export class TerminalService extends EventEmitter {
     const existing = this.sessions.get(agentId);
     if (existing) {
       existing.exitDisposable.dispose();
-      existing.ptyProcess.kill();
+      try {
+        process.kill(-existing.ptyProcess.pid, 'SIGTERM');
+      } catch {
+        existing.ptyProcess.kill();
+      }
       this.sessions.delete(agentId);
     }
 
@@ -80,7 +84,15 @@ export class TerminalService extends EventEmitter {
   destroy(agentId: string): void {
     const session = this.sessions.get(agentId);
     if (session) {
-      session.ptyProcess.kill();
+      // Kill the entire process group to ensure child processes (e.g. claude)
+      // are also terminated, preventing zombie processes.
+      const pid = session.ptyProcess.pid;
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process group kill failed — fall back to direct kill
+        session.ptyProcess.kill();
+      }
       this.sessions.delete(agentId);
     }
   }

@@ -22,6 +22,7 @@ export function TerminalView({ agentId, visible, resumeCommand }: Props) {
   const fitRef = useRef<FitAddon | null>(null);
   const openedRef = useRef(false);
   const everVisibleRef = useRef(false);
+  const initialCommandSentRef = useRef(false);
 
   if (visible) everVisibleRef.current = true;
 
@@ -92,7 +93,7 @@ export function TerminalView({ agentId, visible, resumeCommand }: Props) {
     };
     socket.on('terminal:output', onOutput);
 
-    // PTY exit → auto-reopen fresh shell
+    // PTY exit → show message, user can reopen manually or it auto-reopens a plain shell
     const onExit = (data: { agentId: string; exitCode: number }) => {
       if (data.agentId !== agentId) return;
       openedRef.current = false;
@@ -101,7 +102,7 @@ export function TerminalView({ agentId, visible, resumeCommand }: Props) {
       term.clear();
       term.write(`\x1b[90m[process exited with code ${data.exitCode}]\x1b[0m\r\n`);
       term.write('\x1b[90mReopening shell...\x1b[0m\r\n\r\n');
-      // Re-open a fresh PTY (plain shell, no auto-command)
+      // Re-open a fresh PTY — plain shell only, no auto-command replay
       setTimeout(() => openPty(), 500);
     };
     socket.on('terminal:exit', onExit);
@@ -126,7 +127,10 @@ export function TerminalView({ agentId, visible, resumeCommand }: Props) {
     term.focus();
 
     // Open PTY after delay (ensure room join is processed)
-    setTimeout(() => openPty(resumeCommand), 200);
+    // Only send the resume command on the very first open — not on re-toggle or after exit
+    const cmd = initialCommandSentRef.current ? undefined : resumeCommand;
+    initialCommandSentRef.current = true;
+    setTimeout(() => openPty(cmd), 200);
 
     return () => {
       socket.off('terminal:output', onOutput);
