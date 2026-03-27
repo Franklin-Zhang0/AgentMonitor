@@ -169,6 +169,9 @@ export class AgentManager extends EventEmitter {
       originalPrompt: agentConfig.prompt,
     };
 
+    // Take initial code snapshot (before turn 0) so we can restore to clean state
+    this.takeCodeSnapshot(agent, 0);
+
     this.store.saveAgent(agent);
     this.store.recordPath(os.hostname(), agentConfig.directory);
     this.startProcess(agent);
@@ -706,6 +709,10 @@ export class AgentManager extends EventEmitter {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
 
+    // Take a code snapshot before this turn so we can restore to it later.
+    const turnIndex = agent.messages.filter(m => m.role === 'user').length;
+    this.takeCodeSnapshot(agent, turnIndex);
+
     // Add user message to history
     agent.messages.push({
       id: uuid(),
@@ -738,6 +745,13 @@ export class AgentManager extends EventEmitter {
 
   private resumeAgent(agent: Agent, newPrompt: string): void {
     console.log(`[AgentManager] Resuming agent ${agent.id} (session: ${agent.sessionId || 'none'})`);
+
+    // If a restored conversation seed exists, prepend it so the fresh session
+    // has prior context. One-time use — clear after injection.
+    if (agent.restoredConversationSeed) {
+      newPrompt = `Here is the previous conversation context:\n\n${agent.restoredConversationSeed}\n\n---\n\nNow continue with this new message:\n\n${newPrompt}`;
+      delete agent.restoredConversationSeed;
+    }
 
     // Update the prompt to the new one
     agent.config.prompt = newPrompt;
@@ -943,28 +957,21 @@ export class AgentManager extends EventEmitter {
       agent.messages = agent.messages.slice(0, keepUntil);
     }
 
-    // Optionally restore git worktree
+    // Optionally restore git worktree to the snapshot before this turn
     if (restoreCode && agent.worktreePath) {
-      try {
-        const isGitRepo = (() => {
-          try {
-            execSync('git rev-parse --git-dir', { cwd: agent.worktreePath, stdio: 'pipe' });
-            return true;
-          } catch { return false; }
-        })();
-        if (isGitRepo) {
-          execSync('git restore .', { cwd: agent.worktreePath, stdio: 'pipe' });
-          console.log(`[AgentManager] git restore . in ${agent.worktreePath}`);
-        }
-      } catch (err) {
-        console.warn('[AgentManager] git restore failed:', err);
-      }
+      this.restoreAgentCode(agent, turnIndex);
     }
 
     // After truncating the JSONL, the old session is no longer valid for --resume.
     // Clear sessionId so the next send starts a fresh session instead of hitting
     // "No conversation found with session ID".
+    // Build a conversation seed so the fresh session still has prior context.
     if (restoreConv) {
+      if (agent.messages.length > 0) {
+        agent.restoredConversationSeed = agent.messages
+          .map(m => `[${m.role}]: ${m.content}`)
+          .join('\n\n');
+      }
       agent.sessionId = undefined;
       delete agent.config.flags.resume;
     } else if (agent.sessionId && agent.config.provider === 'claude') {
@@ -978,5 +985,47 @@ export class AgentManager extends EventEmitter {
     this.emit('agent:update', agentId, agent);
 
     return restoredPrompt;
+  }
+
+  private takeCodeSnapshot(agent: Agent, beforeTurnIndex: number): void {
+    if (!agent.worktreePath) return;
+    try {
+      execSync('git rev-parse --git-dir', { cwd: agent.worktreePath, stdio: 'pipe' });
+      // Commit all current changes (including untracked) as a snapshot.
+      // Safe because agents work on isolated worktree branches (agent-XXXX).
+      execSync('git add -A && git commit --allow-empty -m "[snapshot] before turn ' + beforeTurnIndex + '"', {
+        cwd: agent.worktreePath, stdio: 'pipe', shell: '/bin/bash',
+      });
+      const commit = execSync('git rev-parse HEAD', { cwd: agent.worktreePath, encoding: 'utf-8' }).trim();
+      if (!agent.codeSnapshots) agent.codeSnapshots = [];
+      const existing = agent.codeSnapshots.findIndex(s => s.beforeTurnIndex === beforeTurnIndex);
+      if (existing >= 0) {
+        agent.codeSnapshots[existing].commit = commit;
+      } else {
+        agent.codeSnapshots.push({ beforeTurnIndex, commit });
+      }
+      console.log(`[AgentManager] Code snapshot before turn ${beforeTurnIndex}: ${commit.slice(0, 8)}`);
+    } catch {
+      // Not a git repo or commit failed — skip silently
+    }
+  }
+
+  private restoreAgentCode(agent: Agent, beforeTurnIndex: number): void {
+    if (!agent.worktreePath) return;
+    try {
+      execSync('git rev-parse --git-dir', { cwd: agent.worktreePath, stdio: 'pipe' });
+      const snapshot = agent.codeSnapshots?.find(s => s.beforeTurnIndex === beforeTurnIndex);
+      if (snapshot) {
+        execSync(`git reset --hard ${snapshot.commit}`, { cwd: agent.worktreePath, stdio: 'pipe' });
+        agent.codeSnapshots = agent.codeSnapshots!.filter(s => s.beforeTurnIndex < beforeTurnIndex);
+        console.log(`[AgentManager] Restored code to snapshot ${snapshot.commit.slice(0, 8)} (before turn ${beforeTurnIndex})`);
+      } else {
+        // No snapshot — fall back to discarding uncommitted changes
+        execSync('git reset HEAD -- . && git checkout -- .', { cwd: agent.worktreePath, stdio: 'pipe', shell: '/bin/bash' });
+        console.log(`[AgentManager] No snapshot found, reset to HEAD in ${agent.worktreePath}`);
+      }
+    } catch (err) {
+      console.warn('[AgentManager] Code restore failed:', err);
+    }
   }
 }

@@ -56,4 +56,6 @@ export interface Agent {
   sessionId?: string;
   originalPrompt?: string;
   source?: 'monitor' | 'external';
+  restoredConversationSeed?: string;
+  codeSnapshots?: Array<{ beforeTurnIndex: number; commit: string }>;
 }
