@@ -181,7 +181,7 @@ export function Dashboard() {
                     {(agent.config.provider || 'claude').toUpperCase()}
                   </span>
                   {agent.source === 'external' && (
-                    <span className="provider-badge" style={{ background: '#6366f1', marginLeft: 4 }}>{t('dashboard.externalBadge')}</span>
+                    <span className="provider-badge" style={{ background: '#6366f1', color: '#fff', marginLeft: 4 }}>{t('dashboard.externalBadge')}</span>
                   )}
                   {' '}{agent.name}
                 </span>

@@ -636,7 +636,7 @@ export function AgentChat() {
               {(agent.config.provider || 'claude').toUpperCase()}
             </span>
             {agent.source === 'external' && (
-              <span className="provider-badge" style={{ background: '#6366f1', marginLeft: 4 }}>EXT</span>
+              <span className="provider-badge" style={{ background: '#6366f1', color: '#fff', marginLeft: 4 }}>EXT</span>
             )}
             {' '}{agent.name}
           </h2>
