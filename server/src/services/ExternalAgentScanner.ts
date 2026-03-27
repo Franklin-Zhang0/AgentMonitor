@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { existsSync, readFileSync, statSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, statSync, readdirSync, openSync, readSync, closeSync } from 'fs';
 import { resolve, basename } from 'path';
 import { homedir } from 'os';
 import { v4 as uuid } from 'uuid';
@@ -240,9 +240,11 @@ export class ExternalAgentScanner extends EventEmitter {
 
   private isAlreadyTracked(proc: DiscoveredProcess): boolean {
     const agents = this.store.getAllAgents();
+    // Resolve session file to get the actual sessionId for dedup
+    const resolvedSessionId = proc.sessionId || this.findSessionFile(proc)?.sessionId;
     for (const agent of agents) {
       if (agent.pid === proc.pid) return true;
-      if (proc.sessionId && agent.sessionId === proc.sessionId) return true;
+      if (resolvedSessionId && agent.sessionId === resolvedSessionId) return true;
     }
     return false;
   }
@@ -250,6 +252,17 @@ export class ExternalAgentScanner extends EventEmitter {
   private importProcess(proc: DiscoveredProcess): Agent | null {
     // Try to find session file and load messages
     const sessionInfo = this.findSessionFile(proc);
+
+    // Dedup by resolved sessionId — multiple processes can share the same session
+    if (sessionInfo?.sessionId) {
+      const existing = this.store.getAllAgents().find(a => a.sessionId === sessionInfo.sessionId);
+      if (existing) {
+        // If the existing agent has a different PID, add this PID as an alias (don't re-import)
+        console.log(`[ExternalScanner] Skipping PID ${proc.pid}: session ${sessionInfo.sessionId.slice(0, 8)} already tracked by ${existing.id.slice(0, 8)}`);
+        return null;
+      }
+    }
+
     const messages = sessionInfo?.jsonlPath
       ? this.parseJsonlMessages(sessionInfo.jsonlPath)
       : [];
@@ -285,9 +298,16 @@ export class ExternalAgentScanner extends EventEmitter {
       source: 'external',
     };
 
+    // Set tail offset to end of file so we only pick up NEW messages going forward
+    if (sessionInfo?.jsonlPath) {
+      try {
+        this.tailOffsets.set(agent.id, statSync(sessionInfo.jsonlPath).size);
+      } catch { /* ignore */ }
+    }
+
     this.store.saveAgent(agent);
     this.emit('agent:update', agent.id, agent);
-    console.log(`[ExternalScanner] Imported: ${agent.name} (PID: ${proc.pid}, session: ${agent.sessionId || 'none'})`);
+    console.log(`[ExternalScanner] Imported: ${agent.name} (PID: ${proc.pid}, session: ${agent.sessionId || 'none'}, msgs: ${agent.messages.length})`);
     return agent;
   }
 
@@ -441,10 +461,10 @@ export class ExternalAgentScanner extends EventEmitter {
     if (fileSize <= offset) return 0;
 
     try {
-      const fd = require('fs').openSync(sessionFile, 'r');
+      const fd = openSync(sessionFile, 'r');
       const buf = Buffer.alloc(fileSize - offset);
-      require('fs').readSync(fd, buf, 0, buf.length, offset);
-      require('fs').closeSync(fd);
+      readSync(fd, buf, 0, buf.length, offset);
+      closeSync(fd);
 
       const newContent = buf.toString('utf-8');
       const newMessages: Agent['messages'] = [];
