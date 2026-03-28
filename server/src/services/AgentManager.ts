@@ -718,11 +718,15 @@ export class AgentManager extends EventEmitter {
 
     const proc = this.processes.get(agentId);
     if (proc) {
-      // Agent is running (or waiting_input) — send message to existing process
+      // Agent is running (or waiting_input) — send message to existing process.
+      // With --input-format stream-json, Claude CLI accepts stdin at any time and
+      // queues messages. The agent will process it when the current task finishes.
       if (agent.status === 'waiting_input') {
         this.updateAgentStatus(agentId, 'running');
+        // Only set stuck timer when agent transitions from waiting → running,
+        // meaning we expect a response. Don't set it if agent is already busy.
+        this.pendingUserMessage.set(agentId, Date.now());
       }
-      this.pendingUserMessage.set(agentId, Date.now());
       proc.sendMessage(text);
       this.emit('agent:message', agentId, {
         type: 'user',
