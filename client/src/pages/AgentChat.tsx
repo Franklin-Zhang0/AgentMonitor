@@ -682,7 +682,15 @@ export function AgentChat() {
           </button>
           <button
             className={`btn btn-sm ${showTerminal ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setShowTerminal(prev => !prev)}
+            onClick={() => {
+              setShowTerminal(prev => {
+                const next = !prev;
+                // When switching back to chat view, re-fetch agent data to pick up
+                // any messages that arrived while in terminal view
+                if (!next) fetchAgent(true);
+                return next;
+              });
+            }}
             title="Toggle live terminal"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}>
