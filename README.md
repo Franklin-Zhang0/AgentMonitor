@@ -126,21 +126,21 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 
 ## Screenshots
 
-| Dashboard | Task Pipeline |
-|-----------|---------------|
+| Dashboard | Meta Agent Pipeline |
+|-----------|---------------------|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Pipeline](docs/screenshots/pipeline.png) |
 
-| Create Agent | Agent Chat |
-|--------------|------------|
+| Create Agent | Agent Chat (Markdown) |
+|--------------|----------------------|
 | ![Create Agent](docs/screenshots/create-agent.png) | ![Agent Chat](docs/screenshots/agent-chat.png) |
+
+| External Agent Discovery | PTY Web Terminal |
+|--------------------------|------------------|
+| ![External Agent](docs/screenshots/external-agent.png) | ![Terminal](docs/screenshots/terminal.png) |
 
 | Templates | Multi-Language Support |
 |-----------|-----------------------|
 | ![Templates](docs/screenshots/templates.png) | ![Dashboard (Chinese)](docs/screenshots/dashboard-zh.png) |
-
-| PTY Web Terminal | |
-|------------------|--|
-| ![Terminal](docs/screenshots/terminal.png) | Interactive shell in the agent's working directory — run commands, launch `claude`, or debug directly from your browser (works locally and via relay) |
 
 ---
 
