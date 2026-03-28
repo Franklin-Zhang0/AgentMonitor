@@ -13,9 +13,9 @@ import { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import { SlackNotifier } from './SlackNotifier.js';
 import { FeishuNotifier } from './FeishuNotifier.js';
 
-/** How long (ms) after a user message with no response before we consider agent stuck */
-const STUCK_TIMEOUT_MS = 120_000; // 2 minutes
-const STUCK_CHECK_INTERVAL_MS = 30_000; // check every 30s
+/** How long (ms) after a user message with no response before we notify (not auto-interrupt) */
+const STUCK_TIMEOUT_MS = 600_000; // 10 minutes — long tasks (build, push, chrome MCP) can take time
+const STUCK_CHECK_INTERVAL_MS = 60_000; // check every 60s
 
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
@@ -71,26 +71,17 @@ export class AgentManager extends EventEmitter {
         continue;
       }
 
-      console.warn(`[AgentManager] Agent ${agentId} stuck (no response for ${STUCK_TIMEOUT_MS / 1000}s), interrupting`);
+      console.warn(`[AgentManager] Agent ${agentId} possibly stuck (no response for ${STUCK_TIMEOUT_MS / 1000}s)`);
       this.pendingUserMessage.delete(agentId);
 
-      // Notify the user
+      // Notify the user but do NOT auto-interrupt — the agent may be running a long task
       agent.messages.push({
         id: uuid(),
         role: 'system',
-        content: `[Stuck detected] No response for ${STUCK_TIMEOUT_MS / 1000}s after user message. Auto-interrupting — you can resend your message.`,
+        content: `[Stuck?] No response for ${Math.floor(STUCK_TIMEOUT_MS / 60000)} minutes after your message. The agent may be running a long task. You can manually interrupt (Esc) or wait.`,
         timestamp: now,
       });
       this.store.saveAgent(agent);
-
-      // Interrupt then stop
-      proc.interrupt();
-      setTimeout(() => {
-        const current = this.store.getAgent(agentId);
-        if (current && current.status === 'running') {
-          proc.stop();
-        }
-      }, 5000);
 
       this.emit('agent:update', agentId, agent);
     }
