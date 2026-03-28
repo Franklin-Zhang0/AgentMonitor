@@ -33,6 +33,9 @@ export function Pipeline() {
   const [newChrome, setNewChrome] = useState(false);
   const [newFullAuto, setNewFullAuto] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [pathHistory, setPathHistory] = useState<Record<string, string[]>>({});
+  const [showPathDropdown, setShowPathDropdown] = useState(false);
+  const [newDependsOn, setNewDependsOn] = useState<'new' | 'parallel' | number>('new');
 
   // Config form
   const [cfgClaudeMd, setCfgClaudeMd] = useState('');
@@ -46,14 +49,16 @@ export function Pipeline() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [taskData, cfgData, tmplData] = await Promise.all([
+      const [taskData, cfgData, tmplData, settings] = await Promise.all([
         api.getTasks(),
         api.getMetaConfig(),
         api.getTemplates(),
+        api.getSettings().catch(() => ({ pathHistory: {} })),
       ]);
       setTasks(taskData);
       setMetaConfig(cfgData);
       setTemplates(tmplData);
+      setPathHistory((settings as Record<string, unknown>).pathHistory as Record<string, string[]> || {});
     } catch (err) {
       console.error('Failed to fetch pipeline data:', err);
     } finally {
@@ -92,7 +97,19 @@ export function Pipeline() {
         chrome: (newProvider === 'claude' && newChrome) || undefined,
         fullAuto: (newProvider === 'codex' && newFullAuto) || undefined,
       },
-      order: newOrder !== '' ? newOrder : undefined,
+      order: (() => {
+        if (newDependsOn === 'new') {
+          // New step after all existing
+          const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order)) : -1;
+          return maxOrder + 1;
+        }
+        if (newDependsOn === 'parallel') {
+          // Parallel with the last step
+          return tasks.length > 0 ? Math.max(...tasks.map(t => t.order)) : 0;
+        }
+        // Parallel with a specific step
+        return newDependsOn;
+      })(),
     });
     setShowAddTask(false);
     setNewName('');
@@ -340,9 +357,29 @@ export function Pipeline() {
                 style={{ minHeight: 80 }}
               />
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{ position: 'relative' }}>
               <label>{t('pipeline.workingDirOptional')}</label>
-              <input value={newDir} onChange={(e) => setNewDir(e.target.value)} placeholder={t('pipeline.workingDirPlaceholder')} />
+              <input
+                value={newDir}
+                onChange={(e) => { setNewDir(e.target.value); setShowPathDropdown(true); }}
+                onFocus={() => setShowPathDropdown(true)}
+                onBlur={() => setTimeout(() => setShowPathDropdown(false), 200)}
+                placeholder={t('pipeline.workingDirPlaceholder')}
+              />
+              {showPathDropdown && (() => {
+                const allPaths = Object.entries(pathHistory).flatMap(([, paths]) => paths);
+                const filtered = allPaths.filter(p => !newDir || p.toLowerCase().includes(newDir.toLowerCase()));
+                if (filtered.length === 0) return null;
+                return (
+                  <div className="path-dropdown">
+                    {filtered.map(p => (
+                      <div key={p} className="path-dropdown-item" onMouseDown={(e) => { e.preventDefault(); setNewDir(p); setShowPathDropdown(false); }}>
+                        {p}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <div className="form-group" style={{ flex: 1 }}>
@@ -358,13 +395,26 @@ export function Pipeline() {
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>{t('pipeline.stepOrder')}</label>
-                <input
-                  type="number"
-                  value={newOrder}
-                  onChange={(e) => setNewOrder(e.target.value ? parseInt(e.target.value) : '')}
-                  placeholder={t('pipeline.stepOrderPlaceholder')}
-                  min={0}
-                />
+                <select
+                  value={String(newDependsOn)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setNewDependsOn(v === 'new' ? 'new' : v === 'parallel' ? 'parallel' : parseInt(v));
+                  }}
+                >
+                  <option value="new">{t('pipeline.newStep')}</option>
+                  {tasks.length > 0 && (
+                    <option value="parallel">{t('pipeline.parallelWithLast')}</option>
+                  )}
+                  {[...new Set(tasks.map(t => t.order))].sort((a, b) => a - b).map(order => {
+                    const names = tasks.filter(t => t.order === order).map(t => t.name).join(', ');
+                    return (
+                      <option key={order} value={order}>
+                        {t('pipeline.parallelWith')} Step {order} ({names})
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
             </div>
             <div className="form-group">

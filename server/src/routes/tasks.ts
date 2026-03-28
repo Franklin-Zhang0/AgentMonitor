@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import type { AgentStore } from '../store/AgentStore.js';
 import type { MetaAgentManager } from '../services/MetaAgentManager.js';
+import type { AgentManager } from '../services/AgentManager.js';
 import type { PipelineTask } from '../models/Task.js';
 
-export function taskRoutes(store: AgentStore, metaAgent: MetaAgentManager): Router {
+export function taskRoutes(store: AgentStore, metaAgent: MetaAgentManager, agentManager?: AgentManager): Router {
   const router = Router();
 
   // List all tasks
@@ -87,13 +88,22 @@ export function taskRoutes(store: AgentStore, metaAgent: MetaAgentManager): Rout
     res.json(task);
   });
 
-  // Delete task
-  router.delete('/:id', (req, res) => {
-    const deleted = store.deleteTask(req.params.id);
-    if (!deleted) {
+  // Delete task (and its associated agent if any)
+  router.delete('/:id', async (req, res) => {
+    const task = store.getTask(req.params.id);
+    if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
+    // Delete the associated agent from Dashboard
+    if (task.agentId && agentManager) {
+      try {
+        await agentManager.deleteAgent(task.agentId);
+      } catch {
+        // Agent may already be deleted — ignore
+      }
+    }
+    store.deleteTask(req.params.id);
     res.json({ ok: true });
   });
 

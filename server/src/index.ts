@@ -83,7 +83,7 @@ export function createApp() {
   app.use('/api/templates', templateRoutes(store));
   app.use('/api/sessions', sessionRoutes());
   app.use('/api/directories', directoryRoutes());
-  app.use('/api/tasks', taskRoutes(store, metaAgent));
+  app.use('/api/tasks', taskRoutes(store, metaAgent, manager));
   app.use('/api/settings', settingsRoutes(store));
 
   // Health check
