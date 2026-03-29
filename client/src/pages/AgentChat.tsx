@@ -64,6 +64,9 @@ export function AgentChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
   const compositionEndTimeRef = useRef(0);
+  const inputHistoryRef = useRef<string[]>([]);
+  const historyIdxRef = useRef(-1);
+  const savedInputRef = useRef('');
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
@@ -536,6 +539,16 @@ export function AgentChat() {
   const handleSend = () => {
     if (!input.trim() || !id) return;
 
+    // Save to input history
+    const trimmed = input.trim();
+    const hist = inputHistoryRef.current;
+    if (hist[0] !== trimmed) {
+      hist.unshift(trimmed);
+      if (hist.length > 50) hist.pop();
+    }
+    historyIdxRef.current = -1;
+    savedInputRef.current = '';
+
     if (input.startsWith('/')) {
       // Handle commands with arguments (e.g., /compact [instructions])
       const parts = input.trim().split(/\s+/);
@@ -603,6 +616,35 @@ export function AgentChat() {
         }
       }
       return;
+    }
+
+    // ArrowUp/ArrowDown: cycle through input history when cursor is at the start/end
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement;
+      // Only activate when cursor is at position 0 (beginning of input) or input is single-line
+      if (el.selectionStart === 0 && el.selectionEnd === 0) {
+        const hist = inputHistoryRef.current;
+        if (hist.length === 0) return;
+        e.preventDefault();
+        if (historyIdxRef.current === -1) {
+          savedInputRef.current = input;
+        }
+        const newIdx = Math.min(historyIdxRef.current + 1, hist.length - 1);
+        historyIdxRef.current = newIdx;
+        handleInputChange(hist[newIdx]);
+      }
+    } else if (e.key === 'ArrowDown' && !e.shiftKey) {
+      const el = e.currentTarget as HTMLTextAreaElement;
+      if (el.selectionStart === el.value.length && historyIdxRef.current >= 0) {
+        e.preventDefault();
+        const newIdx = historyIdxRef.current - 1;
+        historyIdxRef.current = newIdx;
+        if (newIdx < 0) {
+          handleInputChange(savedInputRef.current);
+        } else {
+          handleInputChange(inputHistoryRef.current[newIdx]);
+        }
+      }
     }
 
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !composingRef.current) {
