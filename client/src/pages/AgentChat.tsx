@@ -70,7 +70,7 @@ export function AgentChat() {
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
-  const [attachedImages, setAttachedImages] = useState<Array<{ name: string; path: string }>>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -553,21 +553,6 @@ export function AgentChat() {
     }
   };
 
-  const handleFileUpload = async (files: File[]) => {
-    if (files.length === 0) return;
-    setUploadingCount(prev => prev + files.length);
-    for (const file of files) {
-      try {
-        const result = await api.uploadFile(file);
-        setAttachedImages(prev => [...prev, { name: file.name, path: result.path }]);
-      } catch (err) {
-        addLocalMessage(`Failed to upload ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setUploadingCount(prev => prev - 1);
-      }
-    }
-  };
-
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -575,7 +560,6 @@ export function AgentChat() {
     const pasteFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      // Accept any file type from clipboard (images, PDFs, etc.)
       if (item.kind === 'file') {
         const file = item.getAsFile();
         if (file) pasteFiles.push(file);
@@ -583,26 +567,42 @@ export function AgentChat() {
     }
     if (pasteFiles.length > 0) {
       e.preventDefault();
-      handleFileUpload(pasteFiles);
+      setAttachedFiles(prev => [...prev, ...pasteFiles]);
     }
   };
 
-  const removeAttachedImage = (index: number) => {
-    setAttachedImages(prev => prev.filter((_, i) => i !== index));
+  const removeAttachedFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSend = () => {
-    if ((!input.trim() && attachedImages.length === 0) || !id) return;
+  const handleSend = async () => {
+    if ((!input.trim() && attachedFiles.length === 0) || !id) return;
 
     // Save to input history
     const trimmed = input.trim();
     const hist = inputHistoryRef.current;
-    if (hist[0] !== trimmed) {
+    if (trimmed && hist[0] !== trimmed) {
       hist.unshift(trimmed);
       if (hist.length > 50) hist.pop();
     }
     historyIdxRef.current = -1;
     savedInputRef.current = '';
+
+    // Upload attached files now (not earlier)
+    const uploadedPaths: { name: string; path: string }[] = [];
+    if (attachedFiles.length > 0) {
+      setUploadingCount(attachedFiles.length);
+      for (const file of attachedFiles) {
+        try {
+          const result = await api.uploadFile(file);
+          uploadedPaths.push({ name: file.name, path: result.path });
+        } catch (err) {
+          addLocalMessage(`Failed to upload ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          setUploadingCount(prev => prev - 1);
+        }
+      }
+    }
 
     if (input.startsWith('/')) {
       // Handle commands with arguments (e.g., /compact [instructions])
@@ -624,14 +624,14 @@ export function AgentChat() {
       }
     }
 
-    // Build message text with image paths prepended
-    const imagePrefixes = attachedImages.map(img => {
-      const isImage = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(img.name);
-      return isImage ? `[Image: ${img.path}]` : `[File: ${img.path}]`;
+    // Build message text with file paths prepended
+    const filePrefixes = uploadedPaths.map(f => {
+      const isImage = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
+      return isImage ? `[Image: ${f.path}]` : `[File: ${f.path}]`;
     }).join('\n');
     const userText = input.trim();
-    const text = imagePrefixes
-      ? (userText ? `${imagePrefixes}\n\n${userText}` : imagePrefixes)
+    const text = filePrefixes
+      ? (userText ? `${filePrefixes}\n\n${userText}` : filePrefixes)
       : userText;
 
     if (!text) return;
@@ -646,7 +646,7 @@ export function AgentChat() {
       };
     });
     setInput('');
-    setAttachedImages([]);
+    setAttachedFiles([]);
     setInputRequired(null);
     api.sendMessage(id, text);
   };
@@ -944,8 +944,8 @@ export function AgentChat() {
             ))}
           </div>
         )}
-        {/* Image attachment indicator */}
-        {(attachedImages.length > 0 || uploadingCount > 0) && (
+        {/* File attachment indicator */}
+        {(attachedFiles.length > 0 || uploadingCount > 0) && (
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -956,7 +956,7 @@ export function AgentChat() {
             borderRadius: 'var(--radius)',
             border: '1px solid var(--border)',
           }}>
-            {attachedImages.map((img, i) => (
+            {attachedFiles.map((file, i) => (
               <div key={i} style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -967,10 +967,11 @@ export function AgentChat() {
                 fontSize: 12,
                 color: 'var(--text)',
               }}>
-                <span style={{ fontSize: 14 }}>{'\uD83D\uDCCE'}</span>
-                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.name}</span>
+                <span style={{ fontSize: 14 }}>{file.type.startsWith('image/') ? '\uD83D\uDDBC' : '\uD83D\uDCCE'}</span>
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({(file.size / 1024).toFixed(0)}KB)</span>
                 <button
-                  onClick={() => removeAttachedImage(i)}
+                  onClick={() => removeAttachedFile(i)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -995,7 +996,7 @@ export function AgentChat() {
                 fontSize: 12,
                 color: 'var(--text-muted)',
               }}>
-                Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}...
+                Uploading {uploadingCount} file{uploadingCount > 1 ? 's' : ''}...
               </div>
             )}
           </div>
@@ -1009,7 +1010,7 @@ export function AgentChat() {
             style={{ display: 'none' }}
             onChange={(e) => {
               if (e.target.files) {
-                handleFileUpload(Array.from(e.target.files));
+                setAttachedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                 e.target.value = '';
               }
             }}
