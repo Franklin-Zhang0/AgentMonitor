@@ -1,7 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
+import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ReasoningEffort } from '../api/client';
 import { useTranslation } from '../i18n';
+
+type ReasoningEffortSelection = ReasoningEffort | 'default';
+const providerReasoningEffortOptions: Record<AgentProvider, Array<{ value: ReasoningEffortSelection; label: string }>> = {
+  claude: [
+    { value: 'default', label: 'Default' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'max', label: 'Max' },
+  ],
+  codex: [
+    { value: 'default', label: 'Default' },
+    { value: 'minimal', label: 'Minimal' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'XHigh' },
+  ],
+};
 
 export function CreateAgent() {
   const navigate = useNavigate();
@@ -27,6 +46,7 @@ export function CreateAgent() {
   const [mcpConfig, setMcpConfig] = useState('');
   const [resumeSession, setResumeSession] = useState('');
   const [model, setModel] = useState('');
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffortSelection>('default');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -77,6 +97,7 @@ export function CreateAgent() {
         setAddDirs((f.addDirs as string) || '');
         setMcpConfig((f.mcpConfig as string) || '');
         setModel((f.model as string) || '');
+        setReasoningEffort((f.reasoningEffort as ReasoningEffort) || 'default');
       }).catch(() => {});
     }
 
@@ -158,6 +179,7 @@ export function CreateAgent() {
           mcpConfig: mcpConfig || undefined,
           resume: resumeSession || undefined,
           model: model || undefined,
+          reasoningEffort: reasoningEffort !== 'default' ? reasoningEffort : undefined,
         },
       });
       navigate(`/agent/${agent.id}`);
@@ -392,6 +414,23 @@ export function CreateAgent() {
           onChange={(e) => setModel(e.target.value)}
           placeholder={provider === 'claude' ? 'e.g. claude-sonnet-4-5-20250514' : 'e.g. o3'}
         />
+      </div>
+
+      <div className="form-group">
+        <label>{t('create.reasoningEffort')}</label>
+        <select
+          value={reasoningEffort}
+          onChange={(e) => setReasoningEffort(e.target.value as ReasoningEffortSelection)}
+        >
+          {providerReasoningEffortOptions[provider].map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.value === 'default' ? t('create.reasoningEffortDefault') : option.label}
+            </option>
+          ))}
+        </select>
+        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+          {t(`create.reasoningEffortHint.${provider}`)}
+        </div>
       </div>
 
       <div className="form-group">

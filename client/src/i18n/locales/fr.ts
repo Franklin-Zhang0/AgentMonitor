@@ -77,6 +77,10 @@ export const fr: Record<string, string> = {
     'create.removeSuggestion': 'Supprimer la suggestion',
     'create.suggestionPlaceholder': 'Tapez une suggestion de prompt...',
     'create.cloneFrom': 'Cloner depuis',
+    'create.reasoningEffort': 'Intensité de raisonnement',
+    'create.reasoningEffortDefault': 'Par défaut',
+    'create.reasoningEffortHint.claude': 'Utilisée pour les sessions Claude démarrées ou reprises par cet agent.',
+    'create.reasoningEffortHint.codex': 'Utilisée pour les nouveaux tours Codex lancés par cet agent.',
 
     // Agent Chat
     'chat.editClaudeMd': 'Modifier CLAUDE.md',
@@ -125,6 +129,10 @@ export const fr: Record<string, string> = {
     'chat.noCostData': 'Aucune donnée de coût disponible.',
     'chat.exportedMsg': 'Conversation exportée.',
     'chat.currentModel': 'Modèle actuel',
+    'chat.currentReasoningEffort': 'Intensité actuelle',
+    'chat.defaultReasoningEffort': 'par défaut',
+    'chat.reasoningEffortHint.claude': 'Les changements s’appliquent quand Claude démarre ou reprend la prochaine session.',
+    'chat.reasoningEffortHint.codex': 'Les changements s’appliquent au prochain tour Codex.',
     'chat.defaultModel': 'par défaut',
     'chat.agentName': 'Agent',
     'chat.agentStatus': 'Statut',

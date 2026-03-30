@@ -1,11 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type Agent } from '../api/client';
+import { api, type Agent, type AgentProvider, type ReasoningEffort } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
 import { TerminalView } from '../components/TerminalView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+type ReasoningEffortSelection = ReasoningEffort | 'default';
+const providerReasoningEffortOptions: Record<AgentProvider, Array<{ value: ReasoningEffortSelection; label: string }>> = {
+  claude: [
+    { value: 'default', label: 'Default' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'max', label: 'Max' },
+  ],
+  codex: [
+    { value: 'default', label: 'Default' },
+    { value: 'minimal', label: 'Minimal' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'XHigh' },
+  ],
+};
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -33,7 +52,7 @@ function buildResumeCommand(agent: Agent | null): string | undefined {
   const flags = agent.config.flags || {};
   for (const [key, value] of Object.entries(flags)) {
     if (key === 'resume') continue; // already added
-    const flag = toKebab(key);
+    const flag = key === 'reasoningEffort' ? 'effort' : toKebab(key);
     if (value === true) {
       parts.push(`--${flag}`);
     } else if (value !== false && value !== undefined && value !== null && value !== '') {
@@ -70,10 +89,14 @@ export function AgentChat() {
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<ReasoningEffortSelection>('default');
+  const [updatingReasoningEffort, setUpdatingReasoningEffort] = useState(false);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
   };
+
+  const getReasoningEffortLabel = (effort?: ReasoningEffort) => effort || t('chat.defaultReasoningEffort');
 
   const slashCommands = [
     { cmd: '/agents', desc: t('chat.slashAgents') },
@@ -234,6 +257,12 @@ export function AgentChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agent?.messages?.length]);
 
+  useEffect(() => {
+    if (agent) {
+      setSelectedReasoningEffort(agent.config.flags.reasoningEffort || 'default');
+    }
+  }, [agent, agent?.config.flags.reasoningEffort]);
+
   // Esc key handler: single = interrupt, double = conversation history picker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -372,9 +401,12 @@ export function AgentChat() {
         break;
       case '/model':
         if (agent) {
-          const modelInfo = agent.config.flags?.model
-            ? `${t('chat.currentModel')}: ${agent.config.flags.model}`
-            : `${t('chat.currentModel')}: ${t('chat.defaultModel')}`;
+          const modelInfo = [
+            agent.config.flags?.model
+              ? `${t('chat.currentModel')}: ${agent.config.flags.model}`
+              : `${t('chat.currentModel')}: ${t('chat.defaultModel')}`,
+            `${t('chat.currentReasoningEffort')}: ${getReasoningEffortLabel(agent.config.flags.reasoningEffort)}`,
+          ].filter(Boolean).join('\n');
           addLocalMessage(modelInfo);
         }
         break;
@@ -412,6 +444,7 @@ export function AgentChat() {
             `${t('chat.agentStatus')}: ${agent.status}`,
             `Provider: ${(agent.config.provider || 'claude').toUpperCase()}`,
             `Directory: ${agent.config.directory}`,
+            `${t('chat.currentReasoningEffort')}: ${getReasoningEffortLabel(agent.config.flags.reasoningEffort)}`,
             agent.costUsd !== undefined ? `Cost: $${agent.costUsd.toFixed(4)}` : null,
             agent.tokenUsage ? `Tokens: ${agent.tokenUsage.input + agent.tokenUsage.output}` : null,
           ].filter(Boolean).join('\n');
@@ -679,6 +712,44 @@ export function AgentChat() {
     setEditingClaudeMd(false);
   };
 
+  const handleReasoningEffortChange = async (nextValue: ReasoningEffortSelection) => {
+    if (!id || !agent) return;
+
+    const nextEffort = nextValue === 'default' ? undefined : nextValue;
+    setSelectedReasoningEffort(nextValue);
+    setUpdatingReasoningEffort(true);
+    setAgent(prev => prev ? {
+      ...prev,
+      config: {
+        ...prev.config,
+        flags: {
+          ...prev.config.flags,
+          reasoningEffort: nextEffort,
+        },
+      },
+    } : prev);
+
+    try {
+      const updated = await api.updateReasoningEffort(id, nextEffort);
+      setAgent(prev => {
+        if (!prev) return updated;
+        if (updated.messages.length >= prev.messages.length) return updated;
+        return {
+          ...prev,
+          config: updated.config,
+          status: updated.status,
+          costUsd: updated.costUsd,
+          tokenUsage: updated.tokenUsage,
+        };
+      });
+    } catch (err) {
+      fetchAgent(true);
+      addLocalMessage(`[Error] ${String(err)}`);
+    } finally {
+      setUpdatingReasoningEffort(false);
+    }
+  };
+
   const filteredCommands = slashCommands.filter((c) =>
     c.cmd.startsWith(slashFilter || '/'),
   );
@@ -702,9 +773,37 @@ export function AgentChat() {
             {agent.config.directory}
             {agent.costUsd !== undefined && ` | $${agent.costUsd.toFixed(4)}`}
             {agent.tokenUsage && ` | ${agent.tokenUsage.input + agent.tokenUsage.output} ${t('common.tokens')}`}
+            {` | ${t('chat.currentReasoningEffort')}: ${getReasoningEffortLabel(agent.config.flags.reasoningEffort)}`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {t('chat.currentReasoningEffort')}
+            </span>
+            <select
+              value={selectedReasoningEffort}
+              disabled={updatingReasoningEffort}
+              onChange={(e) => handleReasoningEffortChange(e.target.value as ReasoningEffortSelection)}
+              style={{
+                width: 'auto',
+                minWidth: 110,
+                padding: '8px 10px',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--text)',
+                fontSize: 13,
+              }}
+              title={t(`chat.reasoningEffortHint.${agent.config.provider}`)}
+            >
+              {providerReasoningEffortOptions[agent.config.provider].map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.value === 'default' ? t('chat.defaultReasoningEffort') : option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <span className={`status status-${agent.status}`}>
             <span className="status-dot" />
             {agent.status}

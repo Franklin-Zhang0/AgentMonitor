@@ -4,7 +4,7 @@ import { resolve, basename } from 'path';
 import { homedir } from 'os';
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
-import type { Agent, AgentProvider } from '../models/Agent.js';
+import { isReasoningEffort, type Agent, type AgentProvider } from '../models/Agent.js';
 import type { AgentStore } from '../store/AgentStore.js';
 
 interface DiscoveredProcess {
@@ -219,11 +219,14 @@ export class ExternalAgentScanner extends EventEmitter {
     const flags: Record<string, boolean | string> = {};
     const sessionMatch = args.match(/--resume\s+(\S+)/);
     const modelMatch = args.match(/--model\s+(\S+)/);
+    const reasoningEffortMatch = args.match(/model_reasoning_effort=(?:"|')?(minimal|low|medium|high|xhigh)(?:"|')?/) ||
+      args.match(/--effort\s+(?:"|')?(low|medium|high|max)(?:"|')?/);
     const promptMatch = args.match(/-p\s+'([^']*)'/) || args.match(/-p\s+"([^"]*)"/);
 
     if (args.includes('--dangerously-skip-permissions')) flags.dangerouslySkipPermissions = true;
     if (args.includes('--chrome')) flags.chrome = true;
     if (args.includes('--full-auto')) flags.fullAuto = true;
+    if (reasoningEffortMatch?.[1]) flags.reasoningEffort = reasoningEffortMatch[1];
 
     const sessionId = sessionMatch?.[1];
     const model = modelMatch?.[1];
@@ -285,6 +288,7 @@ export class ExternalAgentScanner extends EventEmitter {
           resume: proc.sessionId,
           fullAuto: !!proc.flags.fullAuto,
           chrome: !!proc.flags.chrome,
+          reasoningEffort: isReasoningEffort(proc.flags.reasoningEffort) ? proc.flags.reasoningEffort : undefined,
         },
       },
       messages: messages.slice(-this.maxMessages),

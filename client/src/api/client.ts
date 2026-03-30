@@ -19,6 +19,23 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 }
 
 export type AgentProvider = 'claude' | 'codex';
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+export interface AgentFlags {
+  dangerouslySkipPermissions?: boolean;
+  resume?: string;
+  model?: string;
+  fullAuto?: boolean;
+  chrome?: boolean;
+  permissionMode?: string;
+  maxBudgetUsd?: number;
+  allowedTools?: string;
+  disallowedTools?: string;
+  addDirs?: string;
+  mcpConfig?: string;
+  reasoningEffort?: ReasoningEffort;
+  [key: string]: unknown;
+}
 
 export interface Agent {
   id: string;
@@ -32,7 +49,7 @@ export interface Agent {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags: Record<string, unknown>;
+    flags: AgentFlags;
   };
   worktreePath?: string;
   worktreeBranch?: string;
@@ -128,7 +145,7 @@ export const api = {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags?: Record<string, unknown>;
+    flags?: AgentFlags;
   }) => request<Agent>('/agents', { method: 'POST', body: JSON.stringify(data) }),
   stopAgent: (id: string) =>
     request('/agents/' + id + '/stop', { method: 'POST' }),
@@ -152,6 +169,11 @@ export const api = {
     request('/agents/' + id + '/claude-md', {
       method: 'PUT',
       body: JSON.stringify({ content }),
+    }),
+  updateReasoningEffort: (id: string, reasoningEffort?: ReasoningEffort) =>
+    request<Agent>('/agents/' + id + '/reasoning-effort', {
+      method: 'PUT',
+      body: JSON.stringify({ reasoningEffort }),
     }),
   restoreConversation: (id: string, turnIndex: number, restoreCode: boolean, restoreConv = true) =>
     request<{ ok: boolean; restoredPrompt: string }>('/agents/' + id + '/restore', {
