@@ -70,6 +70,9 @@ export function AgentChat() {
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [historyPickerIdx, setHistoryPickerIdx] = useState(0);
   const [historyRestoreTarget, setHistoryRestoreTarget] = useState<number | null>(null);
+  const [attachedImages, setAttachedImages] = useState<Array<{ name: string; path: string }>>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
@@ -550,8 +553,49 @@ export function AgentChat() {
     }
   };
 
+  const handleImageUpload = async (files: File[]) => {
+    const imageFiles = files.filter(f =>
+      ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(f.type)
+    );
+    if (imageFiles.length === 0) return;
+
+    setUploadingCount(prev => prev + imageFiles.length);
+    for (const file of imageFiles) {
+      try {
+        const result = await api.uploadImage(file);
+        setAttachedImages(prev => [...prev, { name: file.name, path: result.path }]);
+      } catch (err) {
+        addLocalMessage(`Failed to upload ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setUploadingCount(prev => prev - 1);
+      }
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      handleImageUpload(imageFiles);
+    }
+  };
+
+  const removeAttachedImage = (index: number) => {
+    setAttachedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = () => {
-    if (!input.trim() || !id) return;
+    if ((!input.trim() && attachedImages.length === 0) || !id) return;
 
     // Save to input history
     const trimmed = input.trim();
@@ -583,7 +627,15 @@ export function AgentChat() {
       }
     }
 
-    const text = input.trim();
+    // Build message text with image paths prepended
+    const imagePrefixes = attachedImages.map(img => `[Image: ${img.path}]`).join('\n');
+    const userText = input.trim();
+    const text = imagePrefixes
+      ? (userText ? `${imagePrefixes}\n\n${userText}` : imagePrefixes)
+      : userText;
+
+    if (!text) return;
+
     // Optimistic: show user message immediately
     setAgent(prev => {
       if (!prev) return prev;
@@ -594,6 +646,7 @@ export function AgentChat() {
       };
     });
     setInput('');
+    setAttachedImages([]);
     setInputRequired(null);
     api.sendMessage(id, text);
   };
@@ -891,12 +944,82 @@ export function AgentChat() {
             ))}
           </div>
         )}
+        {/* Image attachment indicator */}
+        {(attachedImages.length > 0 || uploadingCount > 0) && (
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            padding: '6px 8px',
+            marginBottom: 4,
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+          }}>
+            {attachedImages.map((img, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 8px',
+                background: 'var(--bg-input)',
+                borderRadius: 4,
+                fontSize: 12,
+                color: 'var(--text)',
+              }}>
+                <span style={{ fontSize: 14 }}>{'\uD83D\uDCCE'}</span>
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.name}</span>
+                <button
+                  onClick={() => removeAttachedImage(i)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    fontSize: 14,
+                    lineHeight: 1,
+                  }}
+                  title="Remove"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+            {uploadingCount > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 8px',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+              }}>
+                Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}...
+              </div>
+            )}
+          </div>
+        )}
         <div className="chat-input-area">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              if (e.target.files) {
+                handleImageUpload(Array.from(e.target.files));
+                e.target.value = '';
+              }
+            }}
+          />
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { compositionEndTimeRef.current = Date.now(); setTimeout(() => { composingRef.current = false; }, 100); }}
             placeholder={
@@ -913,6 +1036,14 @@ export function AgentChat() {
               el.style.height = Math.min(el.scrollHeight, 160) + 'px';
             }}
           />
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image"
+            style={{ padding: '6px 8px', fontSize: 16, lineHeight: 1 }}
+          >
+            {'\uD83D\uDCCE'}
+          </button>
           <button className="btn" onClick={handleSend}>
             {t('common.send')}
           </button>

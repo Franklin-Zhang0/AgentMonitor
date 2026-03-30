@@ -21,6 +21,7 @@ import { templateRoutes } from './routes/templates.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { directoryRoutes } from './routes/directories.js';
 import { taskRoutes } from './routes/tasks.js';
+import { uploadRoutes } from './routes/upload.js';
 import { setupSocketHandlers } from './socket/handlers.js';
 import { TunnelClient } from './services/TunnelClient.js';
 import { setupTunnelBridge } from './services/tunnelBridge.js';
@@ -85,6 +86,7 @@ export function createApp() {
   app.use('/api/directories', directoryRoutes());
   app.use('/api/tasks', taskRoutes(store, metaAgent, manager));
   app.use('/api/settings', settingsRoutes(store));
+  app.use('/api/upload-image', uploadRoutes());
 
   // Health check
   app.get('/api/health', (_req, res) => {

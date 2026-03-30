@@ -115,7 +115,29 @@ export interface ServerSettings {
   pathHistory: Record<string, string[]>;
 }
 
+async function uploadFile<T>(path: string, file: File, fieldName: string): Promise<T> {
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Authentication required');
+    }
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export const api = {
+  // Upload
+  uploadImage: (file: File) => uploadFile<{ path: string }>('/upload-image', file, 'image'),
+
   // Agents
   getAgents: () => request<Agent[]>('/agents'),
   getAgent: (id: string) => request<Agent>(`/agents/${id}`),
