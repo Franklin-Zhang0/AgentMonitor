@@ -553,16 +553,12 @@ export function AgentChat() {
     }
   };
 
-  const handleImageUpload = async (files: File[]) => {
-    const imageFiles = files.filter(f =>
-      ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(f.type)
-    );
-    if (imageFiles.length === 0) return;
-
-    setUploadingCount(prev => prev + imageFiles.length);
-    for (const file of imageFiles) {
+  const handleFileUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    setUploadingCount(prev => prev + files.length);
+    for (const file of files) {
       try {
-        const result = await api.uploadImage(file);
+        const result = await api.uploadFile(file);
         setAttachedImages(prev => [...prev, { name: file.name, path: result.path }]);
       } catch (err) {
         addLocalMessage(`Failed to upload ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
@@ -576,17 +572,18 @@ export function AgentChat() {
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    const imageFiles: File[] = [];
+    const pasteFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type.startsWith('image/')) {
+      // Accept any file type from clipboard (images, PDFs, etc.)
+      if (item.kind === 'file') {
         const file = item.getAsFile();
-        if (file) imageFiles.push(file);
+        if (file) pasteFiles.push(file);
       }
     }
-    if (imageFiles.length > 0) {
+    if (pasteFiles.length > 0) {
       e.preventDefault();
-      handleImageUpload(imageFiles);
+      handleFileUpload(pasteFiles);
     }
   };
 
@@ -628,7 +625,10 @@ export function AgentChat() {
     }
 
     // Build message text with image paths prepended
-    const imagePrefixes = attachedImages.map(img => `[Image: ${img.path}]`).join('\n');
+    const imagePrefixes = attachedImages.map(img => {
+      const isImage = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(img.name);
+      return isImage ? `[Image: ${img.path}]` : `[File: ${img.path}]`;
+    }).join('\n');
     const userText = input.trim();
     const text = imagePrefixes
       ? (userText ? `${imagePrefixes}\n\n${userText}` : imagePrefixes)
@@ -1004,12 +1004,12 @@ export function AgentChat() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
+            accept="*/*"
             multiple
             style={{ display: 'none' }}
             onChange={(e) => {
               if (e.target.files) {
-                handleImageUpload(Array.from(e.target.files));
+                handleFileUpload(Array.from(e.target.files));
                 e.target.value = '';
               }
             }}

@@ -23,26 +23,18 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: ${allowed.join(', ')}`));
-    }
-  },
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
 export function uploadRoutes(): Router {
   const router = Router();
 
-  router.post('/', upload.single('image'), (req, res) => {
+  router.post('/', upload.single('file'), (req, res) => {
     if (!req.file) {
-      res.status(400).json({ error: 'No image file provided' });
+      res.status(400).json({ error: 'No file provided' });
       return;
     }
-    res.json({ path: req.file.path });
+    res.json({ path: req.file.path, originalName: req.file.originalname, size: req.file.size });
   });
 
   return router;

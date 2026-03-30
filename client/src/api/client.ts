@@ -135,8 +135,8 @@ async function uploadFile<T>(path: string, file: File, fieldName: string): Promi
 }
 
 export const api = {
-  // Upload
-  uploadImage: (file: File) => uploadFile<{ path: string }>('/upload-image', file, 'image'),
+  // Upload (images + any file type)
+  uploadFile: (file: File) => uploadFile<{ path: string; originalName: string; size: number }>('/upload-image', file, 'file'),
 
   // Agents
   getAgents: () => request<Agent[]>('/agents'),
