@@ -58,6 +58,7 @@
 - **克隆智能体** —— 复制现有智能体的配置，快速创建具有相同设置的新智能体
 - **交互式提示** —— 当智能体需要输入（权限提示、选项）时，Web UI 显示通知横幅和可点击的选项按钮
 - **费用与 Token 追踪** —— 实时显示每个智能体的费用（Claude）和 Token 使用量（Codex）
+- **文件附件** —— 从剪贴板粘贴图片/文件（Ctrl+V）或点击附件按钮随消息发送文件；支持所有文件类型，最大 50 MB，内联预览显示文件名、大小和移除按钮
 - **双击 Esc 中断** —— 按两次 Escape 向任何运行中的智能体发送 SIGINT
 - **自动删除过期智能体** —— 可配置已停止智能体的保留时间（默认 24 小时，可在设置中调整）
 
@@ -320,6 +321,7 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
+| POST | `/api/upload` | 上传文件附件（multipart，最大 50 MB） |
 | GET | `/api/sessions` | 列出之前的 Claude 会话 |
 | GET | `/api/directories?path=/home` | 浏览服务器目录 |
 | GET | `/api/directories/claude-md?path=/project` | 检查目录中是否存在 CLAUDE.md |

@@ -59,6 +59,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Clone agent** — Duplicate an existing agent's configuration to quickly create a new one with the same settings
 - **Interactive prompts** — When an agent needs input (permission prompts, choices), the web UI shows notification banners and clickable choice buttons
 - **Cost & token tracking** — Per-agent cost (Claude) and token usage (Codex) displayed in real time
+- **File attachments** — Paste images/files from clipboard (Ctrl+V) or click the attach button to send files with your message; supports all file types up to 50 MB, with inline preview chips showing filename, size, and a remove button
 - **Double-Esc interrupt** — Press Escape twice to send SIGINT to any running agent
 - **Auto-delete expired agents** — Configurable retention period for stopped agents (default 24h, adjustable in Settings)
 
@@ -325,6 +326,7 @@ Create, edit, and reuse CLAUDE.md instruction templates across agents.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| POST | `/api/upload` | Upload file attachment (multipart, max 50 MB) |
 | GET | `/api/sessions` | List previous Claude sessions |
 | GET | `/api/directories?path=/home` | Browse server directories |
 | GET | `/api/directories/claude-md?path=/project` | Check if CLAUDE.md exists in a directory |

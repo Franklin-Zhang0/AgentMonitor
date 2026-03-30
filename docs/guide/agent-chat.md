@@ -46,6 +46,18 @@ Agent Monitor offers two complementary ways to interact with agents:
 
 2. **Terminal View** — Real PTY shell in the agent's working directory. Best for hands-on work: running commands, launching `claude` manually, debugging, or any task where you want a full terminal experience.
 
+## File Attachments
+
+Attach images, documents, code files, or any other file type to your messages.
+
+- **Clipboard paste**: Press **Ctrl+V** (or Cmd+V) to attach an image or file from your clipboard
+- **Attach button**: Click the paperclip button next to the input area to browse and select files
+- **Size limit**: Up to 50 MB per file
+- **Preview chips**: Each attached file appears as a chip below the input showing filename, size, and an **X** button to remove it before sending
+- **Lazy upload**: Files are stored locally in the browser until you click **Send** — nothing is uploaded until then
+- **Server storage**: On send, files are uploaded to `/tmp/agentmonitor-uploads/` and the file paths are included in the message text as `[Image: /path]` or `[File: /path]` so the agent can access them
+- **Relay support**: In remote/relay mode, file uploads are forwarded through the tunnel to the agent machine
+
 ## Message Types
 
 Messages are color-coded by role:
