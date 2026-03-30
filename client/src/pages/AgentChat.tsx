@@ -632,11 +632,14 @@ export function AgentChat() {
       return;
     }
 
-    // ArrowUp/ArrowDown: cycle through input history when cursor is at the start/end
+    // ArrowUp/ArrowDown: cycle through input history
+    // Activate when: already browsing history (idx >= 0), or input is empty, or cursor at pos 0
     if (e.key === 'ArrowUp' && !e.shiftKey) {
       const el = e.currentTarget as HTMLTextAreaElement;
-      // Only activate when cursor is at position 0 (beginning of input) or input is single-line
-      if (el.selectionStart === 0 && el.selectionEnd === 0) {
+      const browsing = historyIdxRef.current >= 0;
+      const atStart = el.selectionStart === 0 && el.selectionEnd === 0;
+      const empty = !input;
+      if (browsing || atStart || empty) {
         const hist = inputHistoryRef.current;
         if (hist.length === 0) return;
         e.preventDefault();
@@ -648,8 +651,7 @@ export function AgentChat() {
         handleInputChange(hist[newIdx]);
       }
     } else if (e.key === 'ArrowDown' && !e.shiftKey) {
-      const el = e.currentTarget as HTMLTextAreaElement;
-      if (el.selectionStart === el.value.length && historyIdxRef.current >= 0) {
+      if (historyIdxRef.current >= 0) {
         e.preventDefault();
         const newIdx = historyIdxRef.current - 1;
         historyIdxRef.current = newIdx;
