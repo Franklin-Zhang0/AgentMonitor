@@ -115,6 +115,20 @@ export function AgentChat() {
         }
         return data;
       });
+      // Initialize input history from existing user messages (most recent first)
+      if (inputHistoryRef.current.length === 0 && data.messages) {
+        const userMsgs = data.messages
+          .filter((m: { role: string }) => m.role === 'user')
+          .map((m: { content: string }) => m.content)
+          .reverse();
+        // Deduplicate
+        const seen = new Set<string>();
+        inputHistoryRef.current = userMsgs.filter((msg: string) => {
+          if (seen.has(msg)) return false;
+          seen.add(msg);
+          return true;
+        }).slice(0, 50);
+      }
     } catch {
       navigate('/');
     }
