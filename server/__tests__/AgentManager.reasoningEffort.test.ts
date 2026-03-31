@@ -57,7 +57,7 @@ describe('reasoning effort support', () => {
         directory: string;
         prompt: string;
         model?: string;
-        reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+        reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
       }) => { bin: string; args: string[] };
     }).buildCodexCommand.bind(proc);
 

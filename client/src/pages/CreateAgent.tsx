@@ -14,13 +14,18 @@ const providerReasoningEffortOptions: Record<AgentProvider, Array<{ value: Reaso
   ],
   codex: [
     { value: 'default', label: 'Default' },
-    { value: 'minimal', label: 'Minimal' },
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
     { value: 'xhigh', label: 'XHigh' },
   ],
 };
+
+function normalizeReasoningEffortSelection(provider: AgentProvider, effort?: string): ReasoningEffortSelection {
+  return providerReasoningEffortOptions[provider].some((option) => option.value === effort)
+    ? effort as ReasoningEffortSelection
+    : 'default';
+}
 
 export function CreateAgent() {
   const navigate = useNavigate();
@@ -97,7 +102,7 @@ export function CreateAgent() {
         setAddDirs((f.addDirs as string) || '');
         setMcpConfig((f.mcpConfig as string) || '');
         setModel((f.model as string) || '');
-        setReasoningEffort((f.reasoningEffort as ReasoningEffort) || 'default');
+        setReasoningEffort(normalizeReasoningEffortSelection(source.config.provider, f.reasoningEffort as string | undefined));
       }).catch(() => {});
     }
 
@@ -116,6 +121,11 @@ export function CreateAgent() {
     setNewSuggestion('');
     setShowAddSuggestion(false);
     try { await api.updateSettings({ promptSuggestions: updated }); } catch {}
+  };
+
+  const handleProviderChange = (nextProvider: AgentProvider) => {
+    setProvider(nextProvider);
+    setReasoningEffort((current) => normalizeReasoningEffortSelection(nextProvider, current));
   };
 
   const removeSuggestion = async (index: number) => {
@@ -208,14 +218,14 @@ export function CreateAgent() {
         <div className="provider-selector">
           <button
             className={`provider-btn ${provider === 'claude' ? 'active' : ''}`}
-            onClick={() => setProvider('claude')}
+            onClick={() => handleProviderChange('claude')}
             type="button"
           >
             {t('common.claudeCode')}
           </button>
           <button
             className={`provider-btn ${provider === 'codex' ? 'active' : ''}`}
-            onClick={() => setProvider('codex')}
+            onClick={() => handleProviderChange('codex')}
             type="button"
           >
             {t('common.codex')}

@@ -219,7 +219,7 @@ export class ExternalAgentScanner extends EventEmitter {
     const flags: Record<string, boolean | string> = {};
     const sessionMatch = args.match(/--resume\s+(\S+)/);
     const modelMatch = args.match(/--model\s+(\S+)/);
-    const reasoningEffortMatch = args.match(/model_reasoning_effort=(?:"|')?(minimal|low|medium|high|xhigh)(?:"|')?/) ||
+    const reasoningEffortMatch = args.match(/model_reasoning_effort=(?:"|')?(low|medium|high|xhigh)(?:"|')?/) ||
       args.match(/--effort\s+(?:"|')?(low|medium|high|max)(?:"|')?/);
     const promptMatch = args.match(/-p\s+'([^']*)'/) || args.match(/-p\s+"([^"]*)"/);
 

@@ -18,13 +18,18 @@ const providerReasoningEffortOptions: Record<AgentProvider, Array<{ value: Reaso
   ],
   codex: [
     { value: 'default', label: 'Default' },
-    { value: 'minimal', label: 'Minimal' },
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
     { value: 'xhigh', label: 'XHigh' },
   ],
 };
+
+function normalizeReasoningEffortSelection(provider: AgentProvider, effort?: string): ReasoningEffortSelection {
+  return providerReasoningEffortOptions[provider].some((option) => option.value === effort)
+    ? effort as ReasoningEffortSelection
+    : 'default';
+}
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -259,9 +264,9 @@ export function AgentChat() {
 
   useEffect(() => {
     if (agent) {
-      setSelectedReasoningEffort(agent.config.flags.reasoningEffort || 'default');
+      setSelectedReasoningEffort(normalizeReasoningEffortSelection(agent.config.provider, agent.config.flags.reasoningEffort));
     }
-  }, [agent, agent?.config.flags.reasoningEffort]);
+  }, [agent, agent?.config.flags.reasoningEffort, agent?.config.provider]);
 
   // Esc key handler: single = interrupt, double = conversation history picker
   useEffect(() => {

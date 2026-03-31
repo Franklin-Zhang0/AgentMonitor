@@ -1,10 +1,10 @@
 export type AgentStatus = 'running' | 'stopped' | 'error' | 'waiting_input';
 export type AgentProvider = 'claude' | 'codex';
-export const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 export const PROVIDER_REASONING_EFFORTS: Record<AgentProvider, readonly ReasoningEffort[]> = {
   claude: ['low', 'medium', 'high', 'max'],
-  codex: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+  codex: ['low', 'medium', 'high', 'xhigh'],
 };
 
 export function isReasoningEffort(value: unknown): value is ReasoningEffort {

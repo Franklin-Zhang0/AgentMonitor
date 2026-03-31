@@ -19,7 +19,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 }
 
 export type AgentProvider = 'claude' | 'codex';
-export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AgentFlags {
   dangerouslySkipPermissions?: boolean;
