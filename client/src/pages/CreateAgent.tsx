@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
 import { useTranslation } from '../i18n';
+import { getInstructionFileName, replaceInstructionFileName } from '../lib/instructionFiles';
 
 export function CreateAgent() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export function CreateAgent() {
   const [directory, setDirectory] = useState('');
   const [prompt, setPrompt] = useState('');
   const [claudeMd, setClaudeMd] = useState('');
+  const [instructionTouched, setInstructionTouched] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
@@ -33,7 +35,7 @@ export function CreateAgent() {
   // Directory browser
   const [dirListing, setDirListing] = useState<DirListing | null>(null);
   const [showDirBrowser, setShowDirBrowser] = useState(false);
-  const [claudeMdPrompt, setClaudeMdPrompt] = useState<{ content: string } | null>(null);
+  const [claudeMdPrompt, setClaudeMdPrompt] = useState<{ content: string; fileName: string } | null>(null);
 
   // Templates, sessions, and prompt suggestions
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -63,6 +65,7 @@ export function CreateAgent() {
         // Use originalPrompt (stored at creation time), falling back to first user message
         setPrompt(source.originalPrompt || source.messages?.find((m: { role: string }) => m.role === 'user')?.content || source.config.prompt);
         setClaudeMd(source.config.claudeMd || '');
+        setInstructionTouched(!!source.config.claudeMd);
         setAdminEmail(source.config.adminEmail || '');
         setWhatsappPhone(source.config.whatsappPhone || '');
         setSlackWebhookUrl(source.config.slackWebhookUrl || '');
@@ -113,20 +116,40 @@ export function CreateAgent() {
     }
   };
 
+  const checkInstructionFile = async (dirPath: string, targetProvider = provider) => {
+    try {
+      const result = await api.checkInstructionFile(dirPath, targetProvider);
+      if (result.exists && result.content && result.fileName) {
+        if (!instructionTouched || !claudeMd.trim()) {
+          setClaudeMd(result.content);
+          setClaudeMdPrompt(null);
+          return;
+        }
+        if (claudeMd.trim() !== result.content.trim()) {
+          setClaudeMdPrompt({ content: result.content, fileName: result.fileName });
+          return;
+        }
+        setClaudeMdPrompt(null);
+      } else {
+        setClaudeMdPrompt(null);
+      }
+    } catch {
+      setClaudeMdPrompt(null);
+    }
+  };
+
   const selectDir = async (path: string) => {
     setDirectory(path);
     setShowDirBrowser(false);
-    try {
-      const result = await api.checkClaudeMd(path);
-      if (result.exists && result.content) {
-        setClaudeMdPrompt({ content: result.content });
-      }
-    } catch {}
+    await checkInstructionFile(path);
   };
 
   const handleTemplateSelect = (templateId: string) => {
     const tmpl = templates.find((t) => t.id === templateId);
-    if (tmpl) setClaudeMd(tmpl.content);
+    if (tmpl) {
+      setClaudeMd(tmpl.content);
+      setInstructionTouched(true);
+    }
   };
 
   const handleCreate = async () => {
@@ -167,6 +190,10 @@ export function CreateAgent() {
     }
   };
 
+  const instructionFileName = getInstructionFileName(provider);
+  const instructionFieldLabel = replaceInstructionFileName(t('create.claudeMd'), instructionFileName);
+  const instructionFieldPlaceholder = replaceInstructionFileName(t('create.claudeMdPlaceholder'), instructionFileName);
+
   return (
     <div style={{ maxWidth: 700 }}>
       <div className="page-header">
@@ -186,14 +213,20 @@ export function CreateAgent() {
         <div className="provider-selector">
           <button
             className={`provider-btn ${provider === 'claude' ? 'active' : ''}`}
-            onClick={() => setProvider('claude')}
+            onClick={() => {
+              setProvider('claude');
+              if (directory) checkInstructionFile(directory, 'claude');
+            }}
             type="button"
           >
             {t('common.claudeCode')}
           </button>
           <button
             className={`provider-btn ${provider === 'codex' ? 'active' : ''}`}
-            onClick={() => setProvider('codex')}
+            onClick={() => {
+              setProvider('codex');
+              if (directory) checkInstructionFile(directory, 'codex');
+            }}
             type="button"
           >
             {t('common.codex')}
@@ -248,12 +281,7 @@ export function CreateAgent() {
                           e.preventDefault();
                           setDirectory(p);
                           setShowPathDropdown(false);
-                          // Check for CLAUDE.md
-                          api.checkClaudeMd(p).then(result => {
-                            if (result.exists && result.content) {
-                              setClaudeMdPrompt({ content: result.content });
-                            }
-                          }).catch(() => {});
+                          checkInstructionFile(p);
                         }}
                       >
                         {p}
@@ -297,10 +325,16 @@ export function CreateAgent() {
 
       {claudeMdPrompt && (
         <div style={{ padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>{t('create.claudeMdFound')}</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            {replaceInstructionFileName(t('create.claudeMdFound'), claudeMdPrompt.fileName)}
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sm" onClick={() => { setClaudeMd(claudeMdPrompt.content); setClaudeMdPrompt(null); }}>
-              {t('create.loadExisting')}
+            <button className="btn btn-sm" onClick={() => {
+              setClaudeMd(claudeMdPrompt.content);
+              setInstructionTouched(false);
+              setClaudeMdPrompt(null);
+            }}>
+              {replaceInstructionFileName(t('create.loadExisting'), claudeMdPrompt.fileName)}
             </button>
             <button className="btn btn-sm btn-outline" onClick={() => setClaudeMdPrompt(null)}>
               {t('create.keepCustom')}
@@ -508,7 +542,7 @@ export function CreateAgent() {
 
       <div className="form-group">
         <label>
-          {t('create.claudeMd')}{' '}
+          {instructionFieldLabel}{' '}
           {templates.length > 0 && (
             <select
               style={{ marginLeft: 8, padding: '2px 4px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', fontSize: 12 }}
@@ -524,8 +558,11 @@ export function CreateAgent() {
         </label>
         <textarea
           value={claudeMd}
-          onChange={(e) => setClaudeMd(e.target.value)}
-          placeholder={t('create.claudeMdPlaceholder')}
+          onChange={(e) => {
+            setClaudeMd(e.target.value);
+            setInstructionTouched(true);
+          }}
+          placeholder={instructionFieldPlaceholder}
           style={{ minHeight: 160 }}
         />
       </div>

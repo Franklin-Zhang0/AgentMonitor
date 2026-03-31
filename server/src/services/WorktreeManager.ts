@@ -1,12 +1,15 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import type { AgentProvider } from '../models/Agent.js';
+import { getInstructionFileName } from '../utils/instructionFiles.js';
 
 export class WorktreeManager {
   createWorktree(
     repoDir: string,
     branchName: string,
     claudeMd?: string,
+    provider: AgentProvider = 'claude',
   ): { worktreePath: string; branch: string } {
     const worktreeBase = path.join(repoDir, '.agent-worktrees');
     fs.mkdirSync(worktreeBase, { recursive: true });
@@ -22,9 +25,9 @@ export class WorktreeManager {
       stdio: 'pipe',
     });
 
-    // Write CLAUDE.md if provided
+    // Write the provider-specific instruction file if provided.
     if (claudeMd) {
-      fs.writeFileSync(path.join(worktreePath, 'CLAUDE.md'), claudeMd);
+      fs.writeFileSync(path.join(worktreePath, getInstructionFileName(provider)), claudeMd);
     }
 
     return { worktreePath, branch: branchName };
@@ -49,12 +52,12 @@ export class WorktreeManager {
     }
   }
 
-  updateClaudeMd(worktreePath: string, content: string): void {
-    fs.writeFileSync(path.join(worktreePath, 'CLAUDE.md'), content);
+  updateClaudeMd(worktreePath: string, content: string, provider: AgentProvider = 'claude'): void {
+    fs.writeFileSync(path.join(worktreePath, getInstructionFileName(provider)), content);
   }
 
-  getClaudeMd(worktreePath: string): string | null {
-    const filePath = path.join(worktreePath, 'CLAUDE.md');
+  getClaudeMd(worktreePath: string, provider: AgentProvider = 'claude'): string | null {
+    const filePath = path.join(worktreePath, getInstructionFileName(provider));
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath, 'utf-8');
     }

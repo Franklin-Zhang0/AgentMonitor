@@ -84,6 +84,7 @@ describe('Directory routes', () => {
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dirroutes-test-'));
     fs.mkdirSync(path.join(tmpDir, 'testdir'));
+    fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), '# Claude');
     app = express();
     app.use(express.json());
     app.use('/api/directories', directoryRoutes());
@@ -102,5 +103,39 @@ describe('Directory routes', () => {
     expect(res.status).toBe(200);
     const body = res.body as { entries: unknown[] };
     expect(body.entries).toBeDefined();
+  });
+
+  it('returns provider-specific instruction files when present', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), '# Codex');
+
+    const res = await request(
+      app,
+      'GET',
+      `/api/directories/claude-md?path=${encodeURIComponent(tmpDir)}&provider=codex`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      exists: true,
+      content: '# Codex',
+      fileName: 'AGENTS.md',
+      matchedProvider: 'codex',
+    });
+  });
+
+  it('falls back to compatible instruction files across providers', async () => {
+    const res = await request(
+      app,
+      'GET',
+      `/api/directories/claude-md?path=${encodeURIComponent(tmpDir)}&provider=codex`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      exists: true,
+      content: '# Claude',
+      fileName: 'CLAUDE.md',
+      matchedProvider: 'claude',
+    });
   });
 });

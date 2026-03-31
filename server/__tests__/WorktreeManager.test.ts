@@ -58,6 +58,16 @@ describe('WorktreeManager', () => {
     expect(content).toBe('# New');
   });
 
+  it('creates and updates AGENTS.md for codex worktrees', () => {
+    const result = manager.createWorktree(tmpDir, 'codex-md', '# Codex Config', 'codex');
+    const agentsMd = fs.readFileSync(path.join(result.worktreePath, 'AGENTS.md'), 'utf-8');
+    expect(agentsMd).toBe('# Codex Config');
+
+    manager.updateClaudeMd(result.worktreePath, '# Updated Codex Config', 'codex');
+    const content = manager.getClaudeMd(result.worktreePath, 'codex');
+    expect(content).toBe('# Updated Codex Config');
+  });
+
   it('getClaudeMd returns null if no file', () => {
     const result = manager.createWorktree(tmpDir, 'no-md');
     // No CLAUDE.md was written

@@ -158,6 +158,8 @@ cd server && npm install && cd ..
 cd client && npm install && cd ..
 ```
 
+如果只是 **本地使用**，到这里就够了，**不需要配置 relay / 中继**。
+
 ### 生产环境
 
 ```bash
@@ -176,11 +178,15 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 - 客户端开发服务器：http://localhost:5173（代理 API 到 :3456）
 - API 服务器：http://localhost:3456
 
+如果 Agent 和网页面板都运行在同一台机器上，到这里即可。下面的 relay / 中继配置只用于远程访问。
+
 ---
 
 ## 配置
 
 所有配置通过环境变量完成。将 `.env.example` 复制为 `.env` 并设置所需的值。
+
+普通本地启动时，可以直接忽略所有 `RELAY_*` 变量。
 
 ### 服务器
 
@@ -215,12 +221,14 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 |------|--------|------|
 | `SLACK_WEBHOOK_URL` | — | 默认 Slack Incoming Webhook URL |
 
-### 远程中继（隧道）
+### 可选：远程中继（隧道）
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `RELAY_URL` | — | 中继服务器的 WebSocket URL（如 `ws://your-server:3457/tunnel`） |
 | `RELAY_TOKEN` | — | 隧道认证的共享密钥 |
+
+本地模式下留空即可。只有需要远程访问时，才看后面的“Remote Access / 远程访问”章节。
 
 > 如果未设置 SMTP、Twilio 或 Slack 凭据，相应的通知渠道将优雅地禁用 —— 事件将记录到服务器控制台。
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { readFileSync, existsSync } from 'fs';
-import path from 'path';
 import { DirectoryBrowser } from '../services/DirectoryBrowser.js';
+import type { AgentProvider } from '../models/Agent.js';
+import { findInstructionFile } from '../utils/instructionFiles.js';
 
 export function directoryRoutes(): Router {
   const router = Router();
@@ -21,17 +21,22 @@ export function directoryRoutes(): Router {
   router.get('/claude-md', (req, res) => {
     try {
       const dirPath = req.query.path as string;
+      const provider = ((req.query.provider as string) || 'claude') as AgentProvider;
       if (!dirPath) {
         res.json({ exists: false });
         return;
       }
-      const claudeMdPath = path.join(dirPath, 'CLAUDE.md');
-      if (existsSync(claudeMdPath)) {
-        const content = readFileSync(claudeMdPath, 'utf-8');
-        res.json({ exists: true, content });
-      } else {
+      const match = findInstructionFile(dirPath, provider);
+      if (!match) {
         res.json({ exists: false });
+        return;
       }
+      res.json({
+        exists: true,
+        content: match.content,
+        fileName: match.fileName,
+        matchedProvider: match.matchedProvider,
+      });
     } catch (err) {
       res.json({ exists: false });
     }

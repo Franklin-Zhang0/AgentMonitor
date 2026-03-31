@@ -163,6 +163,8 @@ cd server && npm install && cd ..
 cd client && npm install && cd ..
 ```
 
+For **local-only use**, that's enough. You do **not** need to configure relay mode.
+
 ### Production
 
 ```bash
@@ -181,11 +183,15 @@ npm run dev    # Starts server (tsx watch) + client (vite dev) concurrently
 - Client dev server: http://localhost:5173 (proxies API to :3456)
 - API server: http://localhost:3456
 
+If you're running on the same machine as your agents, stop here. The relay setup below is only for remote access from another device or public server.
+
 ---
 
 ## Configuration
 
 All configuration is via environment variables. Copy `.env.example` to `.env` and set the values you need.
+
+For a normal local setup, you can ignore all `RELAY_*` variables.
 
 ### Server
 
@@ -220,12 +226,14 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 |----------|---------|-------------|
 | `SLACK_WEBHOOK_URL` | — | Default Slack Incoming Webhook URL |
 
-### Remote Relay (Tunnel)
+### Optional: Remote Relay (Tunnel)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RELAY_URL` | — | WebSocket URL of relay server (e.g., `ws://your-server:3457/tunnel`) |
 | `RELAY_TOKEN` | — | Shared secret for tunnel authentication |
+
+Leave both unset for local-only mode. See [Remote Access (Relay Mode)](#remote-access-relay-mode) only if you need remote access.
 
 > If SMTP, Twilio, or Slack credentials are not set, the respective notification channel is disabled gracefully — events are logged to the server console.
 

@@ -6,6 +6,7 @@ import { useTranslation } from '../i18n';
 import { TerminalView } from '../components/TerminalView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getInstructionFileName, replaceInstructionFileName } from '../lib/instructionFiles';
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -738,6 +739,10 @@ export function AgentChat() {
 
   if (!agent) return <div>{t('common.loading')}</div>;
 
+  const instructionFileName = getInstructionFileName(agent.config.provider || 'claude');
+  const editInstructionLabel = replaceInstructionFileName(t('chat.editClaudeMd'), instructionFileName);
+  const editInstructionTitle = replaceInstructionFileName(t('chat.editClaudeMdTitle'), instructionFileName);
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -776,7 +781,7 @@ export function AgentChat() {
               setEditingClaudeMd(true);
             }}
           >
-            {t('chat.editClaudeMd')}
+            {editInstructionLabel}
           </button>
           <button
             className={`btn btn-sm ${renderMarkdown ? 'btn-primary' : 'btn-outline'}`}
@@ -1153,7 +1158,7 @@ export function AgentChat() {
         <div className="modal-overlay" onClick={() => setEditingClaudeMd(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">{t('chat.editClaudeMdTitle')}</span>
+              <span className="modal-title">{editInstructionTitle}</span>
               <button
                 className="btn btn-sm btn-outline"
                 onClick={() => setEditingClaudeMd(false)}

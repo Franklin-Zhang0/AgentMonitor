@@ -201,7 +201,13 @@ export const api = {
   listDirectory: (path?: string) =>
     request<DirListing>(`/directories${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   checkClaudeMd: (path: string) =>
-    request<{ exists: boolean; content?: string }>(`/directories/claude-md?path=${encodeURIComponent(path)}`),
+    request<{ exists: boolean; content?: string; fileName?: string; matchedProvider?: AgentProvider }>(
+      `/directories/claude-md?path=${encodeURIComponent(path)}`,
+    ),
+  checkInstructionFile: (path: string, provider: AgentProvider) =>
+    request<{ exists: boolean; content?: string; fileName?: string; matchedProvider?: AgentProvider }>(
+      `/directories/claude-md?path=${encodeURIComponent(path)}&provider=${encodeURIComponent(provider)}`,
+    ),
 
   // Pipeline Tasks
   getTasks: () => request<PipelineTask[]>('/tasks'),

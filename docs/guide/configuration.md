@@ -4,6 +4,8 @@
 
 All configuration is done through environment variables. Copy `.env.example` to `.env` and fill in the values you need. All variables are optional — Agent Monitor works with sensible defaults.
 
+For local-only use, you can ignore every `RELAY_*` variable in this file.
+
 ### Server
 
 | Variable | Default | Description |
@@ -15,6 +17,8 @@ All configuration is done through environment variables. Copy `.env.example` to 
 ```bash
 PORT=8080 npm start
 ```
+
+For most local setups, this is the only section you need.
 
 ### Email Notifications (SMTP)
 
@@ -47,14 +51,14 @@ See the [Notifications](./notifications.md) guide for detailed setup instruction
 
 See the [Notifications](./notifications.md) guide for detailed setup instructions.
 
-### Remote Relay
+### Optional: Remote Relay
 
 | Variable | Default | Description |
 |---|---|---|
 | `RELAY_URL` | _(none)_ | WebSocket URL of the relay server (e.g., `ws://1.2.3.4:3457/tunnel`) |
 | `RELAY_TOKEN` | _(none)_ | Shared secret for tunnel authentication |
 
-When `RELAY_URL` is not set, relay mode is disabled (local-only). See the [Remote Access](./remote-access.md) guide for full setup.
+Leave both unset for local-only mode. See the [Remote Access](./remote-access.md) guide only if you need to access the dashboard through another machine or public server.
 
 ## Agent Flags
 

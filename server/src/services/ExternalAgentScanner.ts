@@ -149,12 +149,14 @@ export class ExternalAgentScanner extends EventEmitter {
   private discoverProcesses(): DiscoveredProcess[] {
     const results: DiscoveredProcess[] = [];
     try {
-      // Only scan current user's processes to avoid permission issues
-      const uid = process.getuid?.() ?? 0;
-      const psOutput = execSync(
-        `ps -u ${uid} -o pid,args --no-headers`,
-        { encoding: 'utf-8', timeout: 5000 },
-      );
+      // Use a BSD/GNU-compatible format:
+      // `pid=` / `args=` suppress headers on both macOS and Linux.
+      // `-x` limits results to the current user's processes in practice and
+      // includes background jobs without a controlling terminal.
+      const psOutput = execSync('ps -x -o pid= -o args=', {
+        encoding: 'utf-8',
+        timeout: 5000,
+      });
 
       for (const line of psOutput.split('\n')) {
         const trimmed = line.trim();

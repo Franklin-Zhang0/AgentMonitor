@@ -13,6 +13,8 @@ git clone <repo-url> && cd AgentMonitor
 npm install
 ```
 
+For local-only use, you do not need relay setup. Install the CLI you want to use, then run the app directly on your machine.
+
 ## Running
 
 ```bash
@@ -21,21 +23,26 @@ npm run dev
 
 # Production build
 npm run build
-npm start
+cd server && npm start
 ```
 
-The server starts on `http://localhost:3456`.
+The local dev UI is available at `http://localhost:5173`, and the API server runs on `http://localhost:3456`.
 
 ## Creating Your First Agent
 
 1. Navigate to **New Agent** in the nav bar
 2. Enter a name, working directory, and prompt
-3. Use **Browse** to pick a directory — if a `CLAUDE.md` exists, you'll be prompted to load it
+3. Use **Browse** to pick a directory — if a `CLAUDE.md` or `AGENTS.md` exists, you'll be prompted to load it
 4. Select provider (Claude Code or Codex)
 5. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
 6. Click **Create Agent**
 
 If the working directory is a git repo, the agent will start in an isolated worktree branch. Otherwise, it works directly in the target directory.
+
+Agent Monitor keeps instruction content compatible across providers:
+- Claude agents use `CLAUDE.md`
+- Codex agents use `AGENTS.md`
+- If only one exists, Create Agent can still load it and write the provider-specific file when the agent is created
 
 ## Using the Dashboard
 

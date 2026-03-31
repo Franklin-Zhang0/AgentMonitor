@@ -12,6 +12,7 @@ import { EmailNotifier } from './EmailNotifier.js';
 import { WhatsAppNotifier } from './WhatsAppNotifier.js';
 import { SlackNotifier } from './SlackNotifier.js';
 import { FeishuNotifier } from './FeishuNotifier.js';
+import { getInstructionFileName } from '../utils/instructionFiles.js';
 
 /** How long (ms) after a user message with no response before we notify (not auto-interrupt) */
 const STUCK_TIMEOUT_MS = 600_000; // 10 minutes — long tasks (build, push, chrome MCP) can take time
@@ -125,6 +126,7 @@ export class AgentManager extends EventEmitter {
           agentConfig.directory,
           branchName,
           agentConfig.claudeMd,
+          agentConfig.provider,
         );
         worktreePath = result.worktreePath;
         worktreeBranch = result.branch;
@@ -132,15 +134,21 @@ export class AgentManager extends EventEmitter {
         console.warn('[AgentManager] Worktree creation failed, using directory directly:', err);
         worktreePath = agentConfig.directory;
         if (agentConfig.claudeMd) {
-          writeFileSync(path.join(worktreePath, 'CLAUDE.md'), agentConfig.claudeMd);
+          writeFileSync(
+            path.join(worktreePath, getInstructionFileName(agentConfig.provider)),
+            agentConfig.claudeMd,
+          );
         }
       }
     } else {
       // Not a git repo — work directly in the directory, no worktree needed
       worktreePath = agentConfig.directory;
-      // Write CLAUDE.md directly into the working directory
+      // Write the provider-specific instruction file directly into the working directory.
       if (agentConfig.claudeMd) {
-        writeFileSync(path.join(worktreePath, 'CLAUDE.md'), agentConfig.claudeMd);
+        writeFileSync(
+          path.join(worktreePath, getInstructionFileName(agentConfig.provider)),
+          agentConfig.claudeMd,
+        );
       }
     }
 
@@ -806,9 +814,9 @@ export class AgentManager extends EventEmitter {
   updateClaudeMd(agentId: string, content: string): void {
     const agent = this.store.getAgent(agentId);
     if (!agent) return;
-    // Write to the worktree file so the running agent sees the change
+    // Write to the provider-specific instruction file so the running agent sees the change.
     if (agent.worktreePath) {
-      this.worktreeManager.updateClaudeMd(agent.worktreePath, content);
+      this.worktreeManager.updateClaudeMd(agent.worktreePath, content, agent.config.provider);
     }
     // Persist to agent config so it survives restart / shows correctly in UI
     agent.config.claudeMd = content;
