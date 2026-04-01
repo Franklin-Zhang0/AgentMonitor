@@ -51,7 +51,9 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Auto-detect running agents** — Claude Code and Codex processes started outside the dashboard (e.g., from a terminal) are automatically discovered and displayed with an **EXT** badge
 - **Automatic session import** — Existing local sessions are loaded from provider logs (`~/.claude/projects/**.jsonl` and `~/.codex/sessions/**.jsonl`) so history appears automatically after discovery
 - **History + live tail sync** — User/assistant/tool messages, token/context metadata, and status changes continue syncing from local session files in real time
-- **Full integration** — External agents can be monitored, chatted with, and managed just like agents created through the UI
+- **Running-only visibility** — External cards are only shown while their underlying process is alive; closed external sessions are removed automatically
+- **Safe deletion model** — External cards cannot be deleted from Agent Monitor (source of truth is the local CLI process/session files)
+- **Internal-agent visibility unchanged** — Internal agents created by Agent Monitor remain visible after stop (until manual delete or retention cleanup)
 - **Toggle visibility** — Show or hide external agents on the dashboard with a single click; preference persists across sessions
 
 ### Real-Time Monitoring & Interaction
@@ -64,7 +66,8 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Cost & token tracking** — Per-agent cost (Claude) and token usage (Codex) displayed in real time
 - **File attachments** — Paste images/files from clipboard (Ctrl+V) or click the attach button to send files with your message; supports all file types up to 50 MB, with inline preview chips showing filename, size, and a remove button
 - **Double-Esc interrupt** — Press Escape twice to send SIGINT to any running agent
-- **Auto-delete expired agents** — Configurable retention period for stopped agents (default 24h, adjustable in Settings)
+- **Auto-delete expired agents** — Configurable retention period for stopped internal agents (default 24h, adjustable in Settings)
+- **Configurable delete behavior** — For monitor-created agents, choose per-delete strategy for session files: ask every time, do not purge session files, or always purge session files by `sessionId`
 
 ### Notifications — Email, WhatsApp & Slack
 Stay informed wherever you are. Agent Monitor sends instant notifications when agents need human attention.
@@ -304,7 +307,7 @@ Create, edit, and reuse instruction templates across agents (`CLAUDE.md` / `AGEN
 | POST | `/api/agents/:id/message` | Send message |
 | POST | `/api/agents/:id/interrupt` | Interrupt agent (SIGINT) |
 | PUT | `/api/agents/:id/claude-md` | Update CLAUDE.md |
-| DELETE | `/api/agents/:id` | Delete agent |
+| DELETE | `/api/agents/:id` | Delete agent (optional body: `{ "purgeSessionFiles": true|false }`) |
 | POST | `/api/agents/actions/stop-all` | Stop all agents |
 
 ### Pipeline Tasks
@@ -335,7 +338,7 @@ Create, edit, and reuse instruction templates across agents (`CLAUDE.md` / `AGEN
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/settings` | Get server settings (agent retention, etc.) |
+| GET | `/api/settings` | Get server settings (internal-agent retention, session-file delete policy, etc.) |
 | GET | `/api/settings/runtime-capabilities` | Get runtime-detected provider capabilities (reasoning efforts + model options) |
 | PUT | `/api/settings` | Update server settings |
 

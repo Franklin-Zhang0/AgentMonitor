@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -113,6 +113,55 @@ describe('ExternalAgentScanner codex support', () => {
     expect(agent?.contextWindow).toEqual({ used: 17, total: 272000 });
   });
 
+  it('prefers last token usage for context window to avoid cumulative overflow', () => {
+    const cwd = path.join(tmpHome, 'project-codex-last-usage');
+    const sessionId = '019d5000-aaaa-7bbb-8ccc-0f0f0f0f0f0f';
+    const sessionDir = path.join(tmpHome, '.codex', 'sessions', '2026', '04', '01');
+    const sessionPath = path.join(sessionDir, `rollout-2026-04-01T10-30-00-${sessionId}.jsonl`);
+    fs.mkdirSync(sessionDir, { recursive: true });
+    fs.mkdirSync(cwd, { recursive: true });
+
+    fs.writeFileSync(sessionPath, [
+      JSON.stringify({
+        timestamp: '2026-04-01T15:30:00.000Z',
+        type: 'session_meta',
+        payload: { id: sessionId, cwd, cli_version: '0.117.0' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-04-01T15:30:05.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            total_token_usage: { input_tokens: 1500000, output_tokens: 300000, total_tokens: 1800000 },
+            last_token_usage: { input_tokens: 9000, output_tokens: 600, reasoning_output_tokens: 400, total_tokens: 10000 },
+            model_context_window: 258400,
+          },
+        },
+      }),
+    ].join('\n'));
+
+    const agent = (scanner as unknown as {
+      importProcess: (proc: {
+        pid: number;
+        provider: 'codex';
+        args: string;
+        cwd: string;
+        flags: Record<string, boolean | string>;
+      }) => ReturnType<ExternalAgentScanner['importByPid']>;
+    }).importProcess({
+      pid: 99997,
+      provider: 'codex',
+      args: `codex exec --cd '${cwd}'`,
+      cwd,
+      flags: {},
+    });
+
+    expect(agent).not.toBeNull();
+    expect(agent?.tokenUsage).toEqual({ input: 1500000, output: 300000 });
+    expect(agent?.contextWindow).toEqual({ used: 10000, total: 258400 });
+  });
+
   it('finds codex sessions by session id from ~/.codex/sessions', () => {
     const sessionId = '019d5000-aaaa-7bbb-8ccc-abcdefabcdef';
     const sessionDir = path.join(tmpHome, '.codex', 'sessions', '2026', '04', '01');
@@ -206,5 +255,34 @@ describe('ExternalAgentScanner codex support', () => {
     expect(reloaded?.messages.map((message) => message.role)).toEqual(['user', 'tool', 'assistant']);
     expect(reloaded?.messages[1].toolResult).toContain('tail');
     expect(reloaded?.messages[2].content).toBe('tail answer');
+  });
+
+  it('removes external agents when their process is no longer alive', () => {
+    const agent = {
+      id: 'external-stale',
+      name: 'stale',
+      status: 'running' as const,
+      config: {
+        provider: 'codex' as const,
+        directory: '/tmp/project',
+        prompt: '(external)',
+        flags: {},
+      },
+      messages: [],
+      lastActivity: Date.now(),
+      createdAt: Date.now(),
+      pid: 424242,
+      source: 'external' as const,
+    };
+    store.saveAgent(agent);
+
+    vi.spyOn(scanner as unknown as { discoverProcesses: () => unknown[] }, 'discoverProcesses')
+      .mockReturnValue([]);
+    vi.spyOn(scanner as unknown as { isProcessAlive: (pid: number) => boolean }, 'isProcessAlive')
+      .mockReturnValue(false);
+
+    const result = scanner.scan();
+    expect(result.removed).toBe(1);
+    expect(store.getAgent(agent.id)).toBeUndefined();
   });
 });

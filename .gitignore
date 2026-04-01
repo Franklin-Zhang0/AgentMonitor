@@ -9,3 +9,4 @@ server/data/telegram_bindings.json
 *.log
 .env
 CLAUDE.md
+test-results/

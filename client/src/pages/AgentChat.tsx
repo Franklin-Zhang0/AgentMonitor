@@ -463,13 +463,17 @@ export function AgentChat() {
           const totalTokens = agent.tokenUsage
             ? agent.tokenUsage.input + agent.tokenUsage.output
             : 0;
-          const maxContext = 200000;
-          const pct = totalTokens > 0 ? Math.round((totalTokens / maxContext) * 100) : 0;
-          const bar = '█'.repeat(Math.round(pct / 5)) + '░'.repeat(20 - Math.round(pct / 5));
+          const contextUsed = agent.contextWindow?.used ?? totalTokens;
+          const maxContext = agent.contextWindow?.total ?? 200000;
+          const displayUsed = Math.max(0, Math.min(maxContext, contextUsed));
+          const rawPct = maxContext > 0 ? (displayUsed / maxContext) * 100 : 0;
+          const pct = Math.max(0, Math.min(100, Math.round(rawPct)));
+          const filled = Math.max(0, Math.min(20, Math.round(pct / 5)));
+          const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
           const contextLines = [
             `${t('chat.contextUsage')}:`,
             `[${bar}] ${pct}%`,
-            `${totalTokens.toLocaleString()} / ${maxContext.toLocaleString()} tokens`,
+            `${displayUsed.toLocaleString()} / ${maxContext.toLocaleString()} tokens`,
             agent.tokenUsage ? `Input: ${agent.tokenUsage.input.toLocaleString()} | Output: ${agent.tokenUsage.output.toLocaleString()}` : '',
           ].filter(Boolean).join('\n');
           addLocalMessage(contextLines);

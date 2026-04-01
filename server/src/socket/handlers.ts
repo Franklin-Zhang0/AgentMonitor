@@ -2,6 +2,8 @@ import type { Server, Socket } from 'socket.io';
 import type { AgentManager } from '../services/AgentManager.js';
 import type { TerminalService } from '../services/TerminalService.js';
 import type { TelegramService } from '../services/TelegramService.js';
+import type { Agent } from '../models/Agent.js';
+import { sanitizeAgentSnapshot } from '../utils/agentSnapshot.js';
 
 export function setupSocketHandlers(io: Server, manager: AgentManager, terminalService: TerminalService, telegramService?: TelegramService | null): void {
   // Forward agent events to connected clients
@@ -30,9 +32,10 @@ export function setupSocketHandlers(io: Server, manager: AgentManager, terminalS
 
   // Full agent snapshot for real-time streaming (no HTTP re-fetch needed)
   manager.on('agent:update', (agentId: string, agent: unknown) => {
-    io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent });
+    const safeAgent = sanitizeAgentSnapshot(agent as Agent);
+    io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent: safeAgent });
     // Also broadcast a lightweight version for Dashboard cards
-    io.emit('agent:snapshot', { agentId, agent });
+    io.emit('agent:snapshot', { agentId, agent: safeAgent });
   });
 
   // PTY terminal output → client

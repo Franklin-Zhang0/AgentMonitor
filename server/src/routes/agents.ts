@@ -4,6 +4,7 @@ import type { AgentStore } from '../store/AgentStore.js';
 import type { ExternalAgentScanner } from '../services/ExternalAgentScanner.js';
 import type { AgentProvider } from '../models/Agent.js';
 import { runtimeCapabilities } from '../services/RuntimeCapabilities.js';
+import { sanitizeAgentSnapshot } from '../utils/agentSnapshot.js';
 
 function reasoningEffortError(provider: AgentProvider): string {
   const capabilities = runtimeCapabilities.getCapabilities().providers[provider];
@@ -34,6 +35,10 @@ export function settingsRoutes(store: AgentStore): Router {
       res.status(400).json({ error: 'agentRetentionMs must be a non-negative number' });
       return;
     }
+    if (!['ask', 'keep', 'purge'].includes(updated.deleteSessionFilesPolicy)) {
+      res.status(400).json({ error: 'deleteSessionFilesPolicy must be one of ask, keep, purge' });
+      return;
+    }
     store.saveSettings(updated);
     res.json(updated);
   });
@@ -41,13 +46,13 @@ export function settingsRoutes(store: AgentStore): Router {
   return router;
 }
 
-export function agentRoutes(manager: AgentManager): Router {
+export function agentRoutes(manager: AgentManager, store: AgentStore): Router {
   const router = Router();
 
   // List all agents
   router.get('/', (_req, res) => {
     const agents = manager.getAllAgents();
-    res.json(agents);
+    res.json(agents.map(sanitizeAgentSnapshot));
   });
 
   // Get single agent
@@ -57,7 +62,7 @@ export function agentRoutes(manager: AgentManager): Router {
       res.status(404).json({ error: 'Agent not found' });
       return;
     }
-    res.json(agent);
+    res.json(sanitizeAgentSnapshot(agent));
   });
 
   // Create agent
@@ -117,8 +122,13 @@ export function agentRoutes(manager: AgentManager): Router {
   // Delete agent
   router.delete('/:id', async (req, res) => {
     try {
-      await manager.deleteAgent(req.params.id);
-      res.json({ ok: true });
+      const requestedPurge = req.body && typeof req.body.purgeSessionFiles === 'boolean'
+        ? req.body.purgeSessionFiles
+        : undefined;
+      const deletePolicy = store.getSettings().deleteSessionFilesPolicy;
+      const purgeSessionFiles = requestedPurge ?? (deletePolicy === 'purge');
+      await manager.deleteAgent(req.params.id, { purgeSessionFiles });
+      res.json({ ok: true, purgeSessionFiles });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }

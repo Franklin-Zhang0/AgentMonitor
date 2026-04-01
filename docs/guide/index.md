@@ -62,7 +62,8 @@ Click any card to enter the full chat interface.
 ## Settings
 
 Open **Settings** from the dashboard to configure:
-- **Auto-delete retention**: Automatically remove stopped agents after a configurable period (default 24h, set to 0 to keep forever)
+- **Auto-delete retention**: Automatically remove stopped internal agents after a configurable period (default 24h, set to 0 to keep forever)
+- **Session-file delete policy**: Choose how delete handles provider session files (`ask every time`, `do not purge session files`, `always purge session files`)
 
 ## Language
 

@@ -56,6 +56,16 @@ POST /api/agents/actions/stop-all
 DELETE /api/agents/:id
 ```
 
+**Optional body:**
+```json
+{
+  "purgeSessionFiles": true
+}
+```
+
+If omitted, the server uses the dashboard setting `deleteSessionFilesPolicy`.
+When provided, `purgeSessionFiles` overrides the default for this delete request only.
+
 ## Send Message
 
 ```

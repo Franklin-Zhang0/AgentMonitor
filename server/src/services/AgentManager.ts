@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
 import { execSync } from 'child_process';
-import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, statSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, statSync, unlinkSync } from 'fs';
 import path, { basename } from 'path';
 import os from 'os';
 import type { Agent, AgentConfig, AgentMessage, AgentStatus, ReasoningEffort } from '../models/Agent.js';
@@ -17,6 +17,10 @@ import { getInstructionFileName } from '../utils/instructionFiles.js';
 /** How long (ms) after a user message with no response before we notify (not auto-interrupt) */
 const STUCK_TIMEOUT_MS = 600_000; // 10 minutes — long tasks (build, push, chrome MCP) can take time
 const STUCK_CHECK_INTERVAL_MS = 60_000; // check every 60s
+
+interface DeleteAgentOptions {
+  purgeSessionFiles?: boolean;
+}
 
 export class AgentManager extends EventEmitter {
   private processes: Map<string, AgentProcess> = new Map();
@@ -854,9 +858,15 @@ export class AgentManager extends EventEmitter {
     this.updateAgentStatus(agentId, 'stopped');
   }
 
-  async deleteAgent(agentId: string): Promise<void> {
+  async deleteAgent(agentId: string, opts: DeleteAgentOptions = {}): Promise<void> {
     await this.stopAgent(agentId);
     const agent = this.store.getAgent(agentId);
+    if (!agent) return;
+
+    if (opts.purgeSessionFiles) {
+      this.purgeSessionFiles(agent);
+    }
+
     if (agent?.worktreePath && agent.worktreeBranch) {
       try {
         this.worktreeManager.removeWorktree(
@@ -956,6 +966,9 @@ export class AgentManager extends EventEmitter {
   private findCodexSessionPath(sessionId: string): string | undefined {
     try {
       const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
+      const exactMatches = this.findCodexSessionPathsById(codexSessionsDir, sessionId);
+      if (exactMatches.length > 0) return exactMatches[0];
+
       const findSession = (dir: string): string | undefined => {
         if (!existsSync(dir)) return undefined;
         const entries = readdirSync(dir, { withFileTypes: true });
@@ -975,6 +988,58 @@ export class AgentManager extends EventEmitter {
       console.warn('[AgentManager] findCodexSessionPath error:', err);
     }
     return undefined;
+  }
+
+  private findCodexSessionPathsById(rootDir: string, sessionId: string): string[] {
+    if (!existsSync(rootDir)) return [];
+    const matches: string[] = [];
+    const visit = (dir: string): void => {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          visit(fullPath);
+          continue;
+        }
+        if (entry.name.endsWith(`${sessionId}.jsonl`)) {
+          matches.push(fullPath);
+        }
+      }
+    };
+    try {
+      visit(rootDir);
+    } catch (err) {
+      console.warn('[AgentManager] findCodexSessionPathsById error:', err);
+    }
+    return matches;
+  }
+
+  private purgeSessionFiles(agent: Agent): void {
+    if (!agent.sessionId) return;
+    const removedFiles: string[] = [];
+    try {
+      if (agent.config.provider === 'claude') {
+        const sessionPath = this.findSessionJsonlPath(agent.sessionId);
+        if (sessionPath && existsSync(sessionPath)) {
+          unlinkSync(sessionPath);
+          removedFiles.push(sessionPath);
+        }
+      } else if (agent.config.provider === 'codex') {
+        const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
+        for (const sessionPath of this.findCodexSessionPathsById(codexSessionsDir, agent.sessionId)) {
+          if (existsSync(sessionPath)) {
+            unlinkSync(sessionPath);
+            removedFiles.push(sessionPath);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AgentManager] Session file purge failed:', err);
+    }
+
+    if (removedFiles.length > 0) {
+      console.log(`[AgentManager] Purged ${removedFiles.length} session file(s) for ${agent.id}:`, removedFiles.join(', '));
+    }
   }
 
   /**

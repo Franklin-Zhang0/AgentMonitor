@@ -34,7 +34,7 @@ All responses are JSON. Errors return:
 - [Template endpoints](/api/templates) - CRUD operations for instruction templates (used as `CLAUDE.md` / `AGENTS.md`)
 
 ### Settings
-- `GET /api/settings` - Get server settings (agent retention period)
+- `GET /api/settings` - Get server settings (internal-agent retention and session-file delete policy)
 - `GET /api/settings/runtime-capabilities` - Get runtime-detected provider capabilities (reasoning efforts + model options)
 - `PUT /api/settings` - Update server settings
 

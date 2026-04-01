@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Agent } from '../api/client';
+import { api, type Agent, type DeleteSessionFilesPolicy } from '../api/client';
 import { getSocket } from '../api/socket';
 import { useTranslation } from '../i18n';
 
@@ -9,6 +9,14 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [retentionHours, setRetentionHours] = useState(24);
+  const [deleteSessionFilesPolicy, setDeleteSessionFilesPolicy] = useState<DeleteSessionFilesPolicy>('keep');
+  const [deleteDialog, setDeleteDialog] = useState<{
+    agentId: string;
+    agentName: string;
+    canPurge: boolean;
+    purgeSessionFiles: boolean;
+    dontAskAgain: boolean;
+  } | null>(null);
   const [showExternal, setShowExternal] = useState(() => localStorage.getItem('agentmonitor-show-external') !== 'false');
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -28,13 +36,17 @@ export function Dashboard() {
     try {
       const s = await api.getSettings();
       setRetentionHours(s.agentRetentionMs / 3_600_000);
+      setDeleteSessionFilesPolicy(s.deleteSessionFilesPolicy || 'keep');
     } catch {
       // ignore
     }
   };
 
   const handleSaveSettings = async () => {
-    await api.updateSettings({ agentRetentionMs: retentionHours * 3_600_000 });
+    await api.updateSettings({
+      agentRetentionMs: retentionHours * 3_600_000,
+      deleteSessionFilesPolicy,
+    });
     setShowSettings(false);
   };
 
@@ -83,10 +95,36 @@ export function Dashboard() {
     fetchAgents();
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    await api.deleteAgent(id);
+  const executeDelete = async (id: string, purgeSessionFiles: boolean) => {
+    await api.deleteAgent(id, { purgeSessionFiles });
     fetchAgents();
+  };
+
+  const handleDelete = async (e: React.MouseEvent, agent: Agent) => {
+    e.stopPropagation();
+    if (deleteSessionFilesPolicy !== 'purge') {
+      setDeleteDialog({
+        agentId: agent.id,
+        agentName: agent.name,
+        canPurge: !!agent.sessionId,
+        purgeSessionFiles: false,
+        dontAskAgain: false,
+      });
+      return;
+    }
+    await executeDelete(agent.id, !!agent.sessionId);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog) return;
+    const shouldPurge = deleteDialog.canPurge && deleteDialog.purgeSessionFiles;
+    if (deleteDialog.dontAskAgain && shouldPurge) {
+      const nextPolicy: DeleteSessionFilesPolicy = 'purge';
+      await api.updateSettings({ deleteSessionFilesPolicy: nextPolicy });
+      setDeleteSessionFilesPolicy(nextPolicy);
+    }
+    await executeDelete(deleteDialog.agentId, shouldPurge);
+    setDeleteDialog(null);
   };
 
   const handleStop = async (e: React.MouseEvent, id: string) => {
@@ -120,6 +158,13 @@ export function Dashboard() {
 
   if (loading) return <div>{t('common.loading')}</div>;
 
+  const activeExternalAgents = agents.filter(
+    (a) => a.source === 'external' && (a.status === 'running' || a.status === 'waiting_input'),
+  );
+  const displayAgents = agents.filter(
+    (a) => a.source !== 'external' || (a.status === 'running' || a.status === 'waiting_input'),
+  );
+
   return (
     <div>
       <div className="page-header">
@@ -128,13 +173,13 @@ export function Dashboard() {
           <button className="btn" onClick={() => navigate('/create')}>
             {t('dashboard.newAgent')}
           </button>
-          {agents.length > 0 && (
+          {displayAgents.length > 0 && (
             <button className="btn btn-danger" onClick={handleStopAll}>
               {t('dashboard.stopAll')}
             </button>
           )}
           {(() => {
-            const extCount = agents.filter(a => a.source === 'external').length;
+            const extCount = activeExternalAgents.length;
             if (extCount === 0) return null;
             return (
               <button
@@ -163,18 +208,25 @@ export function Dashboard() {
         </div>
       </div>
 
-      {agents.length === 0 ? (
+      {displayAgents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
           {t('dashboard.empty')}
         </div>
       ) : (
         <div className="card-grid">
-          {agents.filter(a => showExternal || a.source !== 'external').map((agent) => (
-            <div
-              key={agent.id}
-              className="card"
-              onClick={() => navigate(`/agent/${agent.id}`)}
-            >
+          {displayAgents.filter(a => showExternal || a.source !== 'external').map((agent) => {
+            const contextTotal = agent.contextWindow?.total ?? 0;
+            const rawContextPercent = contextTotal > 0
+              ? (agent.contextWindow!.used / contextTotal) * 100
+              : 0;
+            const contextPercent = Math.max(0, Math.min(100, rawContextPercent));
+
+            return (
+              <div
+                key={agent.id}
+                className="card"
+                onClick={() => navigate(`/agent/${agent.id}`)}
+              >
               <div className="card-header">
                 <span className="card-name">
                   <span className={`provider-badge provider-${agent.config.provider || 'claude'}`}>
@@ -231,15 +283,15 @@ export function Dashboard() {
                     {String(agent.config.flags.model)}
                   </span>
                 )}
-                {agent.contextWindow && (
+                {agent.contextWindow && contextTotal > 0 && (
                   <span className="card-meta-item card-context">
                     <span className="card-context-bar">
                       <span
                         className="card-context-fill"
-                        style={{ width: `${Math.min(100, (agent.contextWindow.used / agent.contextWindow.total) * 100)}%` }}
+                        style={{ width: `${contextPercent}%` }}
                       />
                     </span>
-                    {Math.round((agent.contextWindow.used / agent.contextWindow.total) * 100)}%
+                    {Math.round(contextPercent)}%
                   </span>
                 )}
               </div>
@@ -287,15 +339,33 @@ export function Dashboard() {
                     {t('common.stop')}
                   </button>
                 )}
-                <button
-                  className="btn btn-sm btn-danger"
-                  onClick={(e) => handleDelete(e, agent.id)}
-                >
-                  {t('common.delete')}
-                </button>
+                {agent.source === 'external' ? (
+                  <span
+                    className="quick-tooltip"
+                    data-tooltip={t('dashboard.externalDeleteDisabled')}
+                    style={{ display: 'inline-flex', cursor: 'not-allowed' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      className="btn btn-sm btn-danger"
+                      disabled
+                      style={{ pointerEvents: 'none', opacity: 0.6 }}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={(e) => handleDelete(e, agent)}
+                  >
+                    {t('common.delete')}
+                  </button>
+                )}
               </div>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -317,12 +387,68 @@ export function Dashboard() {
                 <small style={{ color: 'var(--text-muted)' }}>{t('dashboard.retentionDisabled')}</small>
               )}
             </div>
+            <div className="form-group">
+              <label>{t('dashboard.deleteSessionPolicy')}</label>
+              <select
+                value={deleteSessionFilesPolicy}
+                onChange={(e) => setDeleteSessionFilesPolicy(e.target.value as DeleteSessionFilesPolicy)}
+              >
+                <option value="ask">{t('dashboard.deleteSessionPolicy.ask')}</option>
+                <option value="keep">{t('dashboard.deleteSessionPolicy.keep')}</option>
+                <option value="purge">{t('dashboard.deleteSessionPolicy.purge')}</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="btn btn-outline" onClick={() => setShowSettings(false)}>
                 {t('common.cancel')}
               </button>
               <button className="btn" onClick={handleSaveSettings}>
                 {t('common.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteDialog && (
+        <div className="modal-overlay" onClick={() => setDeleteDialog(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('dashboard.deleteConfirmTitle')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 6, marginBottom: 12 }}>
+              {t('dashboard.deleteConfirmMessage', { name: deleteDialog.agentName })}
+            </p>
+            <label className="checkbox-label" style={{ marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={deleteDialog.purgeSessionFiles}
+                disabled={!deleteDialog.canPurge}
+                onChange={(e) => setDeleteDialog((prev) => prev ? {
+                  ...prev,
+                  purgeSessionFiles: e.target.checked,
+                  dontAskAgain: e.target.checked ? prev.dontAskAgain : false,
+                } : prev)}
+              />
+              {t('dashboard.deleteConfirmPurge')}
+            </label>
+            {!deleteDialog.canPurge && (
+              <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 10 }}>
+                {t('dashboard.deleteConfirmNoSession')}
+              </small>
+            )}
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={deleteDialog.dontAskAgain}
+                disabled={!deleteDialog.canPurge || !deleteDialog.purgeSessionFiles}
+                onChange={(e) => setDeleteDialog((prev) => prev ? { ...prev, dontAskAgain: e.target.checked } : prev)}
+              />
+              {t('dashboard.deleteConfirmDontAsk')}
+            </label>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="btn btn-outline" onClick={() => setDeleteDialog(null)}>
+                {t('common.cancel')}
+              </button>
+              <button className="btn btn-danger" onClick={handleDeleteConfirm}>
+                {t('dashboard.deleteConfirmAction')}
               </button>
             </div>
           </div>

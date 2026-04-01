@@ -29,6 +29,8 @@ import { TerminalService } from './services/TerminalService.js';
 import { FeishuService } from './services/FeishuService.js';
 import { FeishuNotifier } from './services/FeishuNotifier.js';
 import { TelegramService } from './services/TelegramService.js';
+import type { Agent } from './models/Agent.js';
+import { sanitizeAgentSnapshot } from './utils/agentSnapshot.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,7 +81,7 @@ export function createApp() {
   );
 
   // REST routes
-  app.use('/api/agents', agentRoutes(manager));
+  app.use('/api/agents', agentRoutes(manager, store));
   app.use('/api/external', externalRoutes(externalScanner));
   app.use('/api/templates', templateRoutes(store));
   app.use('/api/sessions', sessionRoutes());
@@ -162,8 +164,9 @@ export function createApp() {
 
   // External agent scanner — forward events to socket.io for live dashboard updates
   externalScanner.on('agent:update', (agentId: string, agent: unknown) => {
-    io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent });
-    io.emit('agent:snapshot', { agentId, agent });
+    const safeAgent = sanitizeAgentSnapshot(agent as Agent);
+    io.to(`agent:${agentId}`).emit('agent:update', { agentId, agent: safeAgent });
+    io.emit('agent:snapshot', { agentId, agent: safeAgent });
   });
   externalScanner.on('agent:status', (agentId: string, status: string) => {
     io.to(`agent:${agentId}`).emit('agent:status', { agentId, status });

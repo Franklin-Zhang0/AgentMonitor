@@ -20,21 +20,24 @@ Each agent is displayed as a rich information card showing:
 
 - **+ New Agent**: Navigate to the agent creation form
 - **Stop All**: Stop all running agents at once
-- **Delete**: Remove a stopped agent (click the X button)
-- **Settings**: Configure auto-delete retention for stopped agents
+- **Delete**: Remove a stopped internal agent. If configured as `ask` or `do not purge`, a confirm dialog appears and lets you choose whether to purge CLI session files by `sessionId`
+- **Settings**: Configure auto-delete retention for stopped internal agents and default session-file delete policy (`ask` / `do not purge` / `always purge`)
 
 ## External Agent Discovery
 
-Agent Monitor automatically discovers Claude Code and Codex processes running outside the dashboard (e.g., started from a terminal). These are displayed on the dashboard with an **EXT** badge and can be monitored, chatted with, and managed just like agents created through the UI.
+Agent Monitor automatically discovers Claude Code and Codex processes running outside the dashboard (e.g., started from a terminal). These are displayed with an **EXT** badge while their local process is alive.
 
 - **Automatic session ingestion**: Existing local sessions are loaded from provider log files (`~/.claude/projects/**.jsonl` and `~/.codex/sessions/**.jsonl`) so history appears automatically after discovery.
+- **Running-only visibility**: External cards are removed automatically after the underlying process exits.
+- **Safe deletion model**: External cards cannot be deleted from Agent Monitor.
 - **Toggle visibility**: Click the **External (N)** button in the dashboard toolbar to show or hide external agents. The preference is persisted across sessions.
 - **Live updates**: External agents stream messages and status changes in real time, including tool calls/results and token/context updates when available.
-- **Source indicator**: External agents are marked with `source: 'external'` and display a purple "EXT" badge on their card.
+- **Source indicator**: External agents are marked with `source: 'external'` and display an "EXT" badge on their card.
+- **Internal agents are unaffected**: Internal agents created by Agent Monitor remain visible after stop (until manual delete or retention cleanup).
 
 ## Auto-Delete Expired Agents
 
-Stopped agents can be automatically cleaned up after a configurable retention period. Open **Settings** from the dashboard to set the retention time in hours (default: 24 hours). Set to 0 to keep agents forever. The server checks for expired agents every 60 seconds.
+Stopped internal agents can be automatically cleaned up after a configurable retention period. Open **Settings** from the dashboard to set the retention time in hours (default: 24 hours). Set to 0 to keep agents forever. The server checks for expired agents every 60 seconds.
 
 ## Real-time Updates
 

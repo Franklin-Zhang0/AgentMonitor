@@ -9,10 +9,12 @@ export interface ServerSettings {
   agentRetentionMs: number; // default 86400000 (24h), 0 = disabled
   promptSuggestions: string[]; // user-editable prompt quick-fill options
   pathHistory: Record<string, string[]>; // machine hostname → recently used paths
+  deleteSessionFilesPolicy: 'ask' | 'keep' | 'purge';
 }
 
 const DEFAULT_SETTINGS: ServerSettings = {
   agentRetentionMs: 86_400_000, // 24 hours
+  deleteSessionFilesPolicy: 'keep',
   promptSuggestions: [
     'kick off',
     'keep working until confirmed all required features implemented without bugs during test',
@@ -87,6 +89,9 @@ export class AgentStore {
     if (fs.existsSync(this.settingsFile)) {
       try {
         this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(this.settingsFile, 'utf-8')) };
+        if (!['ask', 'keep', 'purge'].includes(this.settings.deleteSessionFilesPolicy)) {
+          this.settings.deleteSessionFilesPolicy = DEFAULT_SETTINGS.deleteSessionFilesPolicy;
+        }
       } catch {
         // ignore corrupt file
       }

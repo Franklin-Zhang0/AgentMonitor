@@ -50,7 +50,9 @@
 - **自动检测运行中的代理** —— 在仪表盘之外启动的 Claude Code 和 Codex 进程（例如从终端启动）会被自动发现并以 **EXT** 徽章显示
 - **自动会话导入** —— 会自动从本地会话日志（`~/.claude/projects/**.jsonl` 与 `~/.codex/sessions/**.jsonl`）加载已有历史
 - **历史 + 增量同步** —— 用户/助手/工具消息，以及 token 与上下文窗口等元数据会持续从本地会话文件同步
-- **完整集成** —— 外部代理可以像通过 UI 创建的代理一样被监控、对话和管理
+- **仅显示运行中的外部代理** —— 外部卡片只在对应本地 CLI 进程仍存活时显示，进程结束后会自动移除
+- **安全删除模型** —— 外部代理卡片不能在 Agent Monitor 中删除（数据源是本地 CLI 进程与会话文件）
+- **内部代理显示不变** —— Agent Monitor 创建的内部代理在停止后仍会保留显示（直到手动删除或命中保留期清理）
 - **切换显示** —— 一键在仪表盘上显示或隐藏外部代理；设置跨会话保留
 
 ### 实时监控与交互
@@ -63,7 +65,8 @@
 - **费用与 Token 追踪** —— 实时显示每个智能体的费用（Claude）和 Token 使用量（Codex）
 - **文件附件** —— 从剪贴板粘贴图片/文件（Ctrl+V）或点击附件按钮随消息发送文件；支持所有文件类型，最大 50 MB，内联预览显示文件名、大小和移除按钮
 - **双击 Esc 中断** —— 按两次 Escape 向任何运行中的智能体发送 SIGINT
-- **自动删除过期智能体** —— 可配置已停止智能体的保留时间（默认 24 小时，可在设置中调整）
+- **自动删除过期智能体** —— 可配置已停止内部智能体的保留时间（默认 24 小时，可在设置中调整）
+- **可配置删除策略** —— 对于 Agent Monitor 创建的智能体，可配置删除时会话文件策略：每次询问、不清理会话文件、或按 `sessionId` 始终清理
 
 ### 通知 —— 邮件、WhatsApp 和 Slack
 随时随地获取通知。Agent Monitor 在智能体需要人工介入时发送即时通知。
@@ -299,7 +302,7 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 | POST | `/api/agents/:id/message` | 发送消息 |
 | POST | `/api/agents/:id/interrupt` | 中断智能体（SIGINT） |
 | PUT | `/api/agents/:id/claude-md` | 更新 CLAUDE.md |
-| DELETE | `/api/agents/:id` | 删除智能体 |
+| DELETE | `/api/agents/:id` | 删除智能体（可选 body：`{ "purgeSessionFiles": true|false }`） |
 | POST | `/api/agents/actions/stop-all` | 停止所有智能体 |
 
 ### 流水线任务
@@ -330,7 +333,7 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| GET | `/api/settings` | 获取服务器设置（智能体保留时间等） |
+| GET | `/api/settings` | 获取服务器设置（内部智能体保留时间、会话文件删除策略等） |
 | GET | `/api/settings/runtime-capabilities` | 获取运行时探测能力（推理强度 + 模型可选项） |
 | PUT | `/api/settings` | 更新服务器设置 |
 

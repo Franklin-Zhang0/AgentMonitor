@@ -20,6 +20,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 
 export type AgentProvider = 'claude' | 'codex';
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type DeleteSessionFilesPolicy = 'ask' | 'keep' | 'purge';
 
 export interface ProviderRuntimeCapabilities {
   available: boolean;
@@ -143,6 +144,7 @@ export interface ServerSettings {
   agentRetentionMs: number;
   promptSuggestions: string[];
   pathHistory: Record<string, string[]>;
+  deleteSessionFilesPolicy: DeleteSessionFilesPolicy;
 }
 
 async function uploadFile<T>(path: string, file: File, fieldName: string): Promise<T> {
@@ -186,8 +188,11 @@ export const api = {
     request('/agents/' + id + '/stop', { method: 'POST' }),
   stopAllAgents: () =>
     request('/agents/actions/stop-all', { method: 'POST' }),
-  deleteAgent: (id: string) =>
-    request('/agents/' + id, { method: 'DELETE' }),
+  deleteAgent: (id: string, opts?: { purgeSessionFiles?: boolean }) =>
+    request('/agents/' + id, {
+      method: 'DELETE',
+      body: opts ? JSON.stringify(opts) : undefined,
+    }),
   sendMessage: (id: string, text: string) =>
     request('/agents/' + id + '/message', {
       method: 'POST',

@@ -115,21 +115,20 @@ export class ExternalAgentScanner extends EventEmitter {
       for (const agent of this.store.getAllAgents()) {
         if (agent.source !== 'external') continue;
 
-        if (agent.status === 'running' && agent.pid) {
-          if (!runningPids.has(agent.pid) && !this.isProcessAlive(agent.pid)) {
-            // Process died
-            agent.status = 'stopped';
-            agent.pid = undefined;
-            this.store.saveAgent(agent);
-            this.emit('agent:status', agent.id, 'stopped');
-            this.emit('agent:update', agent.id, agent);
-            result.removed++;
-          } else {
-            // Still running — tail JSONL for new messages
-            const newMsgs = this.tailMessages(agent);
-            if (newMsgs > 0) {
-              result.updated++;
-            }
+        const isAlive = !!agent.pid && (runningPids.has(agent.pid) || this.isProcessAlive(agent.pid));
+        if (!isAlive) {
+          // External sessions should only appear while their underlying process is alive.
+          this.store.deleteAgent(agent.id);
+          this.emit('agent:status', agent.id, 'deleted');
+          result.removed++;
+          continue;
+        }
+
+        if (agent.status === 'running' || agent.status === 'waiting_input') {
+          // Still running — tail JSONL for new messages
+          const newMsgs = this.tailMessages(agent);
+          if (newMsgs > 0) {
+            result.updated++;
           }
         }
       }
@@ -666,17 +665,26 @@ export class ExternalAgentScanner extends EventEmitter {
 
       if (eventType === 'token_count') {
         const info = payload?.info as Record<string, unknown> | undefined;
-        const usage = info?.total_token_usage as Record<string, unknown> | undefined;
-        if (usage) {
+        const totalUsage = info?.total_token_usage as Record<string, unknown> | undefined;
+        const lastUsage = info?.last_token_usage as Record<string, unknown> | undefined;
+        if (totalUsage) {
           snapshot.tokenUsage = {
-            input: Number(usage.input_tokens || 0),
-            output: Number(usage.output_tokens || 0),
+            input: Number(totalUsage.input_tokens || 0),
+            output: Number(totalUsage.output_tokens || 0),
           };
         }
-        if (typeof info?.model_context_window === 'number') {
+
+        const contextLimit = this.toPositiveNumber(info?.model_context_window);
+        if (contextLimit !== undefined) {
+          const lastUsageTokens = this.extractCodexUsageTotal(lastUsage);
+          const totalUsageTokens = this.extractCodexUsageTotal(totalUsage);
+          const fallbackUsed = snapshot.contextWindow?.used ?? 0;
+          const contextUsed = lastUsageTokens
+            ?? (totalUsageTokens !== undefined && totalUsageTokens <= contextLimit ? totalUsageTokens : undefined)
+            ?? fallbackUsed;
           snapshot.contextWindow = {
-            used: (snapshot.tokenUsage?.input || 0) + (snapshot.tokenUsage?.output || 0),
-            total: info.model_context_window,
+            used: Math.min(contextLimit, Math.max(0, Math.round(contextUsed))),
+            total: contextLimit,
           };
         }
       }
@@ -733,6 +741,31 @@ export class ExternalAgentScanner extends EventEmitter {
       // Ignore malformed arguments.
     }
     return undefined;
+  }
+
+  private toPositiveNumber(value: unknown): number | undefined {
+    const parsed = typeof value === 'number'
+      ? value
+      : (typeof value === 'string' ? Number(value) : NaN);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  private extractCodexUsageTotal(usage: Record<string, unknown> | undefined): number | undefined {
+    if (!usage) return undefined;
+    const totalTokens = this.toPositiveNumber(usage.total_tokens);
+    if (totalTokens !== undefined) return totalTokens;
+
+    const tokenKeys = ['input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens'] as const;
+    let sum = 0;
+    let hasTokens = false;
+    for (const key of tokenKeys) {
+      const value = this.toPositiveNumber(usage[key]);
+      if (value !== undefined) {
+        sum += value;
+        hasTokens = true;
+      }
+    }
+    return hasTokens ? sum : undefined;
   }
 
   private formatCodexFunctionOutput(output: unknown): string {
