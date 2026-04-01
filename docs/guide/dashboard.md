@@ -27,8 +27,9 @@ Each agent is displayed as a rich information card showing:
 
 Agent Monitor automatically discovers Claude Code and Codex processes running outside the dashboard (e.g., started from a terminal). These are displayed on the dashboard with an **EXT** badge and can be monitored, chatted with, and managed just like agents created through the UI.
 
+- **Automatic session ingestion**: Existing local sessions are loaded from provider log files (`~/.claude/projects/**.jsonl` and `~/.codex/sessions/**.jsonl`) so history appears automatically after discovery.
 - **Toggle visibility**: Click the **External (N)** button in the dashboard toolbar to show or hide external agents. The preference is persisted across sessions.
-- **Live updates**: External agents stream messages and status changes in real time, just like managed agents.
+- **Live updates**: External agents stream messages and status changes in real time, including tool calls/results and token/context updates when available.
 - **Source indicator**: External agents are marked with `source: 'external'` and display a purple "EXT" badge on their card.
 
 ## Auto-Delete Expired Agents

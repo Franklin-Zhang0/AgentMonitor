@@ -36,10 +36,10 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 ## Key Features
 
 ### Spin Up Agents Instantly with Cloneable Templates
-- **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, CLAUDE.md) to instantly spin up a new one with the same setup — no re-entering settings
-- **CLAUDE.md templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks
-- **Auto-detect CLAUDE.md** — When selecting a project directory, automatically detects an existing CLAUDE.md and offers to load it
-- **Live editing** — Modify an agent's CLAUDE.md at any time without restarting
+- **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, instruction content) to instantly spin up a new one with the same setup — no re-entering settings
+- **Instruction templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
+- **Auto-detect instruction files** — When selecting a project directory, automatically detects existing instruction files with provider-aware fallback
+- **Live editing** — Modify an agent's instruction content at any time without restarting
 
 ### Multi-Agent Orchestration
 - **Unified dashboard** — Create, monitor, and manage Claude Code and Codex agents from a single interface
@@ -48,6 +48,8 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 
 ### External Agent Discovery
 - **Auto-detect running agents** — Claude Code and Codex processes started outside the dashboard (e.g., from a terminal) are automatically discovered and displayed with an **EXT** badge
+- **Automatic session import** — Existing local sessions are loaded from provider logs (`~/.claude/projects/**.jsonl` and `~/.codex/sessions/**.jsonl`) so history appears automatically after discovery
+- **History + live tail sync** — User/assistant/tool messages, token/context metadata, and status changes continue syncing from local session files in real time
 - **Full integration** — External agents can be monitored, chatted with, and managed just like agents created through the UI
 - **Toggle visibility** — Show or hide external agents on the dashboard with a single click; preference persists across sessions
 
@@ -246,13 +248,13 @@ Leave both unset for local-only mode. See [Remote Access (Relay Mode)](#remote-a
 1. Click **"+ New Agent"** on the Dashboard
 2. Select **Provider** — Claude Code or Codex
 3. Set **Name**, **Working Directory** (use Browse to pick a directory), and **Prompt**
-4. If the selected directory contains a `CLAUDE.md`, you'll be prompted to load it automatically
+4. If the selected directory contains an instruction file (`CLAUDE.md` or `AGENTS.md`), you'll be prompted to load it automatically (provider-aware with compatibility fallback)
 5. Configure **Flags** (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
-6. Optionally load a **CLAUDE.md template** or write custom instructions
+6. Optionally load an instruction template and edit it inline (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
 7. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
 8. Click **Create Agent**
 
-**Tip — Clone an existing agent:** Hit the **Clone** button on any agent card to create a new agent pre-filled with the same directory, provider, flags, and CLAUDE.md. Combine with templates for a reusable agent library: create a template with your standard instructions → create one agent using it → clone whenever you need a fresh instance.
+**Tip — Clone an existing agent:** Hit the **Clone** button on any agent card to create a new agent pre-filled with the same directory, provider, flags, and instruction file content (`CLAUDE.md` / `AGENTS.md`). Combine with templates for a reusable agent library: create a template with your standard instructions → create one agent using it → clone whenever you need a fresh instance.
 
 ### Dashboard
 
@@ -279,7 +281,7 @@ Orchestrate multi-step workflows with sequential and parallel task definitions. 
 
 ### Templates
 
-Create, edit, and reuse CLAUDE.md instruction templates across agents.
+Create, edit, and reuse instruction templates across agents (`CLAUDE.md` / `AGENTS.md`).
 
 ---
 
@@ -337,7 +339,7 @@ Create, edit, and reuse CLAUDE.md instruction templates across agents.
 | POST | `/api/upload` | Upload file attachment (multipart, max 50 MB) |
 | GET | `/api/sessions` | List previous Claude sessions |
 | GET | `/api/directories?path=/home` | Browse server directories |
-| GET | `/api/directories/claude-md?path=/project` | Check if CLAUDE.md exists in a directory |
+| GET | `/api/directories/claude-md?path=/project&provider=codex` | Check instruction file (`CLAUDE.md` / `AGENTS.md`) with compatibility fallback |
 | GET | `/api/health` | Health check |
 
 ### Socket.IO Events

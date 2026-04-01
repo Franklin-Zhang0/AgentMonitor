@@ -31,7 +31,7 @@ All responses are JSON. Errors return:
 - [Task endpoints](/api/tasks) - Manage pipeline tasks and meta agent
 
 ### Templates
-- [Template endpoints](/api/templates) - CRUD operations for CLAUDE.md templates
+- [Template endpoints](/api/templates) - CRUD operations for instruction templates (used as `CLAUDE.md` / `AGENTS.md`)
 
 ### Settings
 - `GET /api/settings` - Get server settings (agent retention period)
@@ -40,5 +40,5 @@ All responses are JSON. Errors return:
 ### Other
 - `GET /api/sessions` - List Claude Code sessions
 - `GET /api/directories?path=/path` - Browse server filesystem directories
-- `GET /api/directories/claude-md?path=/path` - Check if CLAUDE.md exists in a directory
+- `GET /api/directories/claude-md?path=/path&provider=codex` - Check instruction file with provider-aware detection and compatibility fallback
 - `GET /api/health` - Health check
