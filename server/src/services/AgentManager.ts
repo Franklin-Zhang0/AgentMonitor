@@ -476,6 +476,12 @@ export class AgentManager extends EventEmitter {
   }
 
   private handleCodexMessage(agent: Agent, msg: StreamMessage): void {
+    // Extract thread_id as sessionId for Codex
+    if (msg.thread_id && typeof msg.thread_id === 'string' && !agent.sessionId) {
+      agent.sessionId = msg.thread_id;
+      this.store.saveAgent(agent);
+    }
+
     // Codex JSONL events: thread.started, turn.started, item.started, item.completed, turn.completed
     if (msg.type === 'item.completed' && msg.item) {
       if (msg.item.type === 'agent_message') {
@@ -793,7 +799,30 @@ export class AgentManager extends EventEmitter {
   }
 
   async stopAgent(agentId: string): Promise<void> {
+    const agent = this.store.getAgent(agentId);
     const proc = this.processes.get(agentId);
+
+    // Send /compact before stopping if session is large
+    if (proc && agent?.sessionId) {
+      const sessionPath = agent.config.provider === 'claude'
+        ? this.findSessionJsonlPath(agent.sessionId)
+        : this.findCodexSessionPath(agent.sessionId);
+
+      if (sessionPath) {
+        try {
+          const stats = statSync(sessionPath);
+          const sizeMB = stats.size / (1024 * 1024);
+          if (sizeMB > 1) {
+            console.log(`[AgentManager] ${agent.config.provider} session ${agent.sessionId} is ${sizeMB.toFixed(2)}MB, sending /compact`);
+            proc.sendMessage('/compact');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (err) {
+          console.warn(`[AgentManager] Failed to check ${agent.config.provider} session size:`, err);
+        }
+      }
+    }
+
     if (proc) {
       proc.stop();
     }
@@ -895,6 +924,30 @@ export class AgentManager extends EventEmitter {
       }
     } catch (err) {
       console.warn('[AgentManager] findSessionJsonlPath error:', err);
+    }
+    return undefined;
+  }
+
+  private findCodexSessionPath(sessionId: string): string | undefined {
+    try {
+      const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
+      const findSession = (dir: string): string | undefined => {
+        if (!existsSync(dir)) return undefined;
+        const entries = readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            const found = findSession(fullPath);
+            if (found) return found;
+          } else if (entry.name.includes(sessionId)) {
+            return fullPath;
+          }
+        }
+        return undefined;
+      };
+      return findSession(codexSessionsDir);
+    } catch (err) {
+      console.warn('[AgentManager] findCodexSessionPath error:', err);
     }
     return undefined;
   }
