@@ -2,12 +2,29 @@ import { Router } from 'express';
 import type { AgentManager } from '../services/AgentManager.js';
 import type { AgentStore } from '../store/AgentStore.js';
 import type { ExternalAgentScanner } from '../services/ExternalAgentScanner.js';
+import type { AgentProvider } from '../models/Agent.js';
+import { runtimeCapabilities } from '../services/RuntimeCapabilities.js';
+
+function reasoningEffortError(provider: AgentProvider): string {
+  const capabilities = runtimeCapabilities.getCapabilities().providers[provider];
+  const versionLabel = capabilities.version ? ` ${capabilities.version}` : '';
+
+  if (capabilities.reasoningEfforts.length === 0) {
+    return `${provider} CLI${versionLabel} does not expose any supported reasoningEffort values`;
+  }
+
+  return `reasoningEffort must be one of ${capabilities.reasoningEfforts.join(', ')} for ${provider} CLI${versionLabel}`;
+}
 
 export function settingsRoutes(store: AgentStore): Router {
   const router = Router();
 
   router.get('/', (_req, res) => {
     res.json(store.getSettings());
+  });
+
+  router.get('/runtime-capabilities', (_req, res) => {
+    res.json(runtimeCapabilities.getCapabilities());
   });
 
   router.put('/', (req, res) => {
@@ -47,14 +64,21 @@ export function agentRoutes(manager: AgentManager): Router {
   router.post('/', async (req, res) => {
     try {
       const { name, directory, prompt, claudeMd, adminEmail, whatsappPhone, slackWebhookUrl, flags, provider } = req.body;
+      const nextProvider: AgentProvider = provider === 'codex' ? 'codex' : 'claude';
+      const reasoningEffort = flags?.reasoningEffort;
 
       if (!name || !directory || !prompt) {
         res.status(400).json({ error: 'name, directory, and prompt are required' });
         return;
       }
 
+      if (reasoningEffort !== undefined && !runtimeCapabilities.isReasoningEffortSupported(nextProvider, reasoningEffort)) {
+        res.status(400).json({ error: reasoningEffortError(nextProvider) });
+        return;
+      }
+
       const agent = await manager.createAgent(name, {
-        provider: provider || 'claude',
+        provider: nextProvider,
         directory,
         prompt,
         claudeMd,
@@ -137,6 +161,25 @@ export function agentRoutes(manager: AgentManager): Router {
     }
     manager.updateClaudeMd(req.params.id, content);
     res.json({ ok: true });
+  });
+
+  router.put('/:id/reasoning-effort', (req, res) => {
+    const agent = manager.getAgent(req.params.id);
+    if (!agent) {
+      res.status(404).json({ error: 'Agent not found' });
+      return;
+    }
+
+    const requested = req.body.reasoningEffort;
+    const reasoningEffort = requested === '' || requested === null ? undefined : requested;
+
+    if (reasoningEffort !== undefined && !runtimeCapabilities.isReasoningEffortSupported(agent.config.provider, reasoningEffort)) {
+      res.status(400).json({ error: reasoningEffortError(agent.config.provider) });
+      return;
+    }
+
+    const updated = manager.updateReasoningEffort(req.params.id, reasoningEffort);
+    res.json(updated);
   });
 
   // Restore conversation to a previous turn

@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type ServerSettings } from '../api/client';
+import { api, type AgentProvider, type Template, type SessionInfo, type DirListing, type RuntimeCapabilities } from '../api/client';
 import { useTranslation } from '../i18n';
 import { getInstructionFileName, replaceInstructionFileName } from '../lib/instructionFiles';
+import {
+  getReasoningEffortOptions,
+  normalizeReasoningEffortSelection,
+  type ReasoningEffortSelection,
+} from '../lib/reasoningEffort';
 
 export function CreateAgent() {
   const navigate = useNavigate();
@@ -29,6 +34,8 @@ export function CreateAgent() {
   const [mcpConfig, setMcpConfig] = useState('');
   const [resumeSession, setResumeSession] = useState('');
   const [model, setModel] = useState('');
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffortSelection>('default');
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,6 +60,7 @@ export function CreateAgent() {
       setPromptSuggestions(s.promptSuggestions || []);
       setPathHistory(s.pathHistory || {});
     }).catch(() => {});
+    api.getRuntimeCapabilities().then(setRuntimeCapabilities).catch(() => {});
 
     // Clone from existing agent
     const fromId = searchParams.get('from');
@@ -80,6 +88,7 @@ export function CreateAgent() {
         setAddDirs((f.addDirs as string) || '');
         setMcpConfig((f.mcpConfig as string) || '');
         setModel((f.model as string) || '');
+        setReasoningEffort(normalizeReasoningEffortSelection(source.config.provider, f.reasoningEffort, runtimeCapabilities));
       }).catch(() => {});
     }
 
@@ -90,6 +99,10 @@ export function CreateAgent() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    setReasoningEffort((current) => normalizeReasoningEffortSelection(provider, current, runtimeCapabilities));
+  }, [provider, runtimeCapabilities]);
+
   const addSuggestion = async () => {
     const text = newSuggestion.trim();
     if (!text) return;
@@ -98,6 +111,14 @@ export function CreateAgent() {
     setNewSuggestion('');
     setShowAddSuggestion(false);
     try { await api.updateSettings({ promptSuggestions: updated }); } catch {}
+  };
+
+  const handleProviderChange = (nextProvider: AgentProvider) => {
+    setProvider(nextProvider);
+    setReasoningEffort((current) => normalizeReasoningEffortSelection(nextProvider, current, runtimeCapabilities));
+    if (directory) {
+      void checkInstructionFile(directory, nextProvider);
+    }
   };
 
   const removeSuggestion = async (index: number) => {
@@ -181,6 +202,7 @@ export function CreateAgent() {
           mcpConfig: mcpConfig || undefined,
           resume: resumeSession || undefined,
           model: model || undefined,
+          reasoningEffort: reasoningEffort !== 'default' ? reasoningEffort : undefined,
         },
       });
       navigate(`/agent/${agent.id}`);
@@ -193,6 +215,7 @@ export function CreateAgent() {
   const instructionFileName = getInstructionFileName(provider);
   const instructionFieldLabel = replaceInstructionFileName(t('create.claudeMd'), instructionFileName);
   const instructionFieldPlaceholder = replaceInstructionFileName(t('create.claudeMdPlaceholder'), instructionFileName);
+  const reasoningEffortOptions = getReasoningEffortOptions(provider, runtimeCapabilities);
 
   return (
     <div style={{ maxWidth: 700 }}>
@@ -213,20 +236,14 @@ export function CreateAgent() {
         <div className="provider-selector">
           <button
             className={`provider-btn ${provider === 'claude' ? 'active' : ''}`}
-            onClick={() => {
-              setProvider('claude');
-              if (directory) checkInstructionFile(directory, 'claude');
-            }}
+            onClick={() => handleProviderChange('claude')}
             type="button"
           >
             {t('common.claudeCode')}
           </button>
           <button
             className={`provider-btn ${provider === 'codex' ? 'active' : ''}`}
-            onClick={() => {
-              setProvider('codex');
-              if (directory) checkInstructionFile(directory, 'codex');
-            }}
+            onClick={() => handleProviderChange('codex')}
             type="button"
           >
             {t('common.codex')}
@@ -426,6 +443,23 @@ export function CreateAgent() {
           onChange={(e) => setModel(e.target.value)}
           placeholder={provider === 'claude' ? 'e.g. claude-sonnet-4-5-20250514' : 'e.g. o3'}
         />
+      </div>
+
+      <div className="form-group">
+        <label>{t('create.reasoningEffort')}</label>
+        <select
+          value={reasoningEffort}
+          onChange={(e) => setReasoningEffort(e.target.value as ReasoningEffortSelection)}
+        >
+          {reasoningEffortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.value === 'default' ? t('create.reasoningEffortDefault') : option.label}
+            </option>
+          ))}
+        </select>
+        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+          {t(`create.reasoningEffortHint.${provider}`)}
+        </div>
       </div>
 
       <div className="form-group">

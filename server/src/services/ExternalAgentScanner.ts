@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 import { EventEmitter } from 'events';
 import type { Agent, AgentProvider } from '../models/Agent.js';
 import type { AgentStore } from '../store/AgentStore.js';
+import { runtimeCapabilities } from './RuntimeCapabilities.js';
 
 interface DiscoveredProcess {
   pid: number;
@@ -221,11 +222,14 @@ export class ExternalAgentScanner extends EventEmitter {
     const flags: Record<string, boolean | string> = {};
     const sessionMatch = args.match(/--resume\s+(\S+)/);
     const modelMatch = args.match(/--model\s+(\S+)/);
+    const reasoningEffortMatch = args.match(/model_reasoning_effort=(?:"|')?(low|medium|high|xhigh)(?:"|')?/) ||
+      args.match(/--effort\s+(?:"|')?(low|medium|high|max)(?:"|')?/);
     const promptMatch = args.match(/-p\s+'([^']*)'/) || args.match(/-p\s+"([^"]*)"/);
 
     if (args.includes('--dangerously-skip-permissions')) flags.dangerouslySkipPermissions = true;
     if (args.includes('--chrome')) flags.chrome = true;
     if (args.includes('--full-auto')) flags.fullAuto = true;
+    if (reasoningEffortMatch?.[1]) flags.reasoningEffort = reasoningEffortMatch[1];
 
     const sessionId = sessionMatch?.[1];
     const model = modelMatch?.[1];
@@ -287,6 +291,7 @@ export class ExternalAgentScanner extends EventEmitter {
           resume: proc.sessionId,
           fullAuto: !!proc.flags.fullAuto,
           chrome: !!proc.flags.chrome,
+          reasoningEffort: runtimeCapabilities.normalizeReasoningEffort(proc.provider, proc.flags.reasoningEffort),
         },
       },
       messages: messages.slice(-this.maxMessages),

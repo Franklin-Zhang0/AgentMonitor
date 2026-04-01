@@ -77,6 +77,10 @@ export const ja: Record<string, string> = {
     'create.removeSuggestion': '提案を削除',
     'create.suggestionPlaceholder': 'プロンプト提案を入力...',
     'create.cloneFrom': '複製元',
+    'create.reasoningEffort': '推論強度',
+    'create.reasoningEffortDefault': 'デフォルト',
+    'create.reasoningEffortHint.claude': 'このエージェントが開始または再開する Claude セッションに適用されます。',
+    'create.reasoningEffortHint.codex': 'このエージェントが開始する次回以降の Codex ターンに適用されます。',
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.mdを編集',
@@ -125,6 +129,10 @@ export const ja: Record<string, string> = {
     'chat.noCostData': 'コストデータがありません。',
     'chat.exportedMsg': '会話をエクスポートしました。',
     'chat.currentModel': '現在のモデル',
+    'chat.currentReasoningEffort': '現在の強度',
+    'chat.defaultReasoningEffort': 'デフォルト',
+    'chat.reasoningEffortHint.claude': '変更は Claude が次のセッションを開始または再開するときに適用されます。',
+    'chat.reasoningEffortHint.codex': '変更は次の Codex ターンから適用されます。',
     'chat.defaultModel': 'デフォルト',
     'chat.agentName': 'エージェント',
     'chat.agentStatus': 'ステータス',

@@ -77,6 +77,10 @@ export const ko: Record<string, string> = {
     'create.removeSuggestion': '제안 삭제',
     'create.suggestionPlaceholder': '프롬프트 제안 입력...',
     'create.cloneFrom': '복제 원본',
+    'create.reasoningEffort': '추론 강도',
+    'create.reasoningEffortDefault': '기본값',
+    'create.reasoningEffortHint.claude': '이 에이전트가 시작하거나 재개하는 Claude 세션에 적용됩니다.',
+    'create.reasoningEffortHint.codex': '이 에이전트가 시작하는 다음 Codex 턴부터 적용됩니다.',
 
     // Agent Chat
     'chat.editClaudeMd': 'CLAUDE.md 편집',
@@ -125,6 +129,10 @@ export const ko: Record<string, string> = {
     'chat.noCostData': '비용 데이터가 없습니다.',
     'chat.exportedMsg': '대화가 내보내졌습니다.',
     'chat.currentModel': '현재 모델',
+    'chat.currentReasoningEffort': '현재 강도',
+    'chat.defaultReasoningEffort': '기본값',
+    'chat.reasoningEffortHint.claude': '변경 사항은 Claude가 다음 세션을 시작하거나 재개할 때 적용됩니다.',
+    'chat.reasoningEffortHint.codex': '변경 사항은 다음 Codex 턴부터 적용됩니다.',
     'chat.defaultModel': '기본값',
     'chat.agentName': '에이전트',
     'chat.agentStatus': '상태',

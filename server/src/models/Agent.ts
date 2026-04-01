@@ -1,5 +1,15 @@
 export type AgentStatus = 'running' | 'stopped' | 'error' | 'waiting_input';
 export type AgentProvider = 'claude' | 'codex';
+export const REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+export const PROVIDER_REASONING_EFFORTS: Record<AgentProvider, readonly ReasoningEffort[]> = {
+  claude: ['low', 'medium', 'high', 'max'],
+  codex: ['low', 'medium', 'high', 'xhigh'],
+};
+
+export function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return typeof value === 'string' && (REASONING_EFFORTS as readonly string[]).includes(value);
+}
 
 export interface AgentMessage {
   id: string;
@@ -32,6 +42,7 @@ export interface AgentConfig {
     disallowedTools?: string;
     addDirs?: string;
     mcpConfig?: string;
+    reasoningEffort?: ReasoningEffort;
   };
 }
 

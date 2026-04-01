@@ -150,7 +150,7 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 ### Prerequisites
 
 - **Node.js** >= 18
-- **Claude Code CLI** (`claude`) — for Claude agents
+- **Claude Code CLI** (`claude`) — for Claude agents. Agent Monitor detects supported `--effort` values from your installed CLI at runtime; older Claude Code releases may expose only `low`, `medium`, and `high`, while newer releases may also expose `max`
 - **Codex CLI** (`codex`) — for Codex agents
 - **Git** — for worktree isolation (optional; non-git directories work without it)
 

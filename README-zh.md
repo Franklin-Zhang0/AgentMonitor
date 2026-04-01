@@ -145,7 +145,7 @@
 ### 前置条件
 
 - **Node.js** >= 18
-- **Claude Code CLI**（`claude`）—— 用于 Claude 智能体
+- **Claude Code CLI**（`claude`）—— 用于 Claude 智能体。Agent Monitor 会在运行时根据你本机安装的 CLI 自动探测可用的 `--effort` 取值；较旧版本通常只有 `low`、`medium`、`high`，较新版本可能还支持 `max`
 - **Codex CLI**（`codex`）—— 用于 Codex 智能体
 - **Git** —— 用于 worktree 隔离（可选；非 git 目录无需安装）
 

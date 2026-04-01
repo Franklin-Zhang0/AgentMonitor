@@ -19,6 +19,35 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 }
 
 export type AgentProvider = 'claude' | 'codex';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+export interface ProviderRuntimeCapabilities {
+  available: boolean;
+  version?: string;
+  reasoningEfforts: ReasoningEffort[];
+  detectedFrom: 'help' | 'version-threshold' | 'fallback' | 'unavailable';
+}
+
+export interface RuntimeCapabilities {
+  checkedAt: number;
+  providers: Record<AgentProvider, ProviderRuntimeCapabilities>;
+}
+
+export interface AgentFlags {
+  dangerouslySkipPermissions?: boolean;
+  resume?: string;
+  model?: string;
+  fullAuto?: boolean;
+  chrome?: boolean;
+  permissionMode?: string;
+  maxBudgetUsd?: number;
+  allowedTools?: string;
+  disallowedTools?: string;
+  addDirs?: string;
+  mcpConfig?: string;
+  reasoningEffort?: ReasoningEffort;
+  [key: string]: unknown;
+}
 
 export interface Agent {
   id: string;
@@ -32,7 +61,7 @@ export interface Agent {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags: Record<string, unknown>;
+    flags: AgentFlags;
   };
   worktreePath?: string;
   worktreeBranch?: string;
@@ -150,7 +179,7 @@ export const api = {
     adminEmail?: string;
     whatsappPhone?: string;
     slackWebhookUrl?: string;
-    flags?: Record<string, unknown>;
+    flags?: AgentFlags;
   }) => request<Agent>('/agents', { method: 'POST', body: JSON.stringify(data) }),
   stopAgent: (id: string) =>
     request('/agents/' + id + '/stop', { method: 'POST' }),
@@ -174,6 +203,11 @@ export const api = {
     request('/agents/' + id + '/claude-md', {
       method: 'PUT',
       body: JSON.stringify({ content }),
+    }),
+  updateReasoningEffort: (id: string, reasoningEffort?: ReasoningEffort) =>
+    request<Agent>('/agents/' + id + '/reasoning-effort', {
+      method: 'PUT',
+      body: JSON.stringify({ reasoningEffort }),
     }),
   restoreConversation: (id: string, turnIndex: number, restoreCode: boolean, restoreConv = true) =>
     request<{ ok: boolean; restoredPrompt: string }>('/agents/' + id + '/restore', {
@@ -238,6 +272,7 @@ export const api = {
 
   // Server Settings
   getSettings: () => request<ServerSettings>('/settings'),
+  getRuntimeCapabilities: () => request<RuntimeCapabilities>('/settings/runtime-capabilities'),
   updateSettings: (data: Partial<ServerSettings>) =>
     request<ServerSettings>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
 };

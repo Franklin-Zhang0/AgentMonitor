@@ -1,12 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type Agent } from '../api/client';
+import { api, type Agent, type RuntimeCapabilities } from '../api/client';
 import { getSocket, joinAgent, leaveAgent } from '../api/socket';
 import { useTranslation } from '../i18n';
 import { TerminalView } from '../components/TerminalView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getInstructionFileName, replaceInstructionFileName } from '../lib/instructionFiles';
+import {
+  getReasoningEffortLabel,
+  getReasoningEffortOptions,
+  isReasoningEffortSupported,
+  normalizeReasoningEffortSelection,
+  type ReasoningEffortSelection,
+} from '../lib/reasoningEffort';
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -19,7 +26,7 @@ function toggleTheme() {
  * Build a `claude --resume <sessionId>` command with the agent's flags
  * so the PTY terminal auto-launches an interactive Claude session.
  */
-function buildResumeCommand(agent: Agent | null): string | undefined {
+function buildResumeCommand(agent: Agent | null, runtimeCapabilities?: RuntimeCapabilities | null): string | undefined {
   if (!agent) return undefined;
   const provider = agent.config.provider || 'claude';
   // Only Claude supports --resume, and only when agent is running/paused (not stopped)
@@ -34,6 +41,12 @@ function buildResumeCommand(agent: Agent | null): string | undefined {
   const flags = agent.config.flags || {};
   for (const [key, value] of Object.entries(flags)) {
     if (key === 'resume') continue; // already added
+    if (key === 'reasoningEffort') {
+      if (isReasoningEffortSupported(provider, value, runtimeCapabilities)) {
+        parts.push('--effort', String(value));
+      }
+      continue;
+    }
     const flag = toKebab(key);
     if (value === true) {
       parts.push(`--${flag}`);
@@ -74,10 +87,16 @@ export function AgentChat() {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<ReasoningEffortSelection>('default');
+  const [updatingReasoningEffort, setUpdatingReasoningEffort] = useState(false);
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities | null>(null);
 
   const addLocalMessage = (content: string, role = 'system') => {
     setLocalMessages((prev) => [...prev, { id: `local-${Date.now()}`, role, content }]);
   };
+
+  const formatReasoningEffort = (effort?: Agent['config']['flags']['reasoningEffort']) =>
+    effort ? getReasoningEffortLabel(effort) : t('chat.defaultReasoningEffort');
 
   const slashCommands = [
     { cmd: '/agents', desc: t('chat.slashAgents') },
@@ -140,6 +159,7 @@ export function AgentChat() {
 
   useEffect(() => {
     fetchAgent();
+    api.getRuntimeCapabilities().then(setRuntimeCapabilities).catch(() => {});
     if (!id) return;
 
     joinAgent(id);
@@ -237,6 +257,14 @@ export function AgentChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agent?.messages?.length]);
+
+  useEffect(() => {
+    if (agent) {
+      setSelectedReasoningEffort(
+        normalizeReasoningEffortSelection(agent.config.provider, agent.config.flags.reasoningEffort, runtimeCapabilities),
+      );
+    }
+  }, [agent, agent?.config.flags.reasoningEffort, agent?.config.provider, runtimeCapabilities]);
 
   // Esc key handler: single = interrupt, double = conversation history picker
   useEffect(() => {
@@ -376,9 +404,12 @@ export function AgentChat() {
         break;
       case '/model':
         if (agent) {
-          const modelInfo = agent.config.flags?.model
-            ? `${t('chat.currentModel')}: ${agent.config.flags.model}`
-            : `${t('chat.currentModel')}: ${t('chat.defaultModel')}`;
+          const modelInfo = [
+            agent.config.flags?.model
+              ? `${t('chat.currentModel')}: ${agent.config.flags.model}`
+              : `${t('chat.currentModel')}: ${t('chat.defaultModel')}`,
+            `${t('chat.currentReasoningEffort')}: ${formatReasoningEffort(agent.config.flags.reasoningEffort)}`,
+          ].filter(Boolean).join('\n');
           addLocalMessage(modelInfo);
         }
         break;
@@ -416,6 +447,7 @@ export function AgentChat() {
             `${t('chat.agentStatus')}: ${agent.status}`,
             `Provider: ${(agent.config.provider || 'claude').toUpperCase()}`,
             `Directory: ${agent.config.directory}`,
+            `${t('chat.currentReasoningEffort')}: ${formatReasoningEffort(agent.config.flags.reasoningEffort)}`,
             agent.costUsd !== undefined ? `Cost: $${agent.costUsd.toFixed(4)}` : null,
             agent.tokenUsage ? `Tokens: ${agent.tokenUsage.input + agent.tokenUsage.output}` : null,
           ].filter(Boolean).join('\n');
@@ -733,6 +765,44 @@ export function AgentChat() {
     setEditingClaudeMd(false);
   };
 
+  const handleReasoningEffortChange = async (nextValue: ReasoningEffortSelection) => {
+    if (!id || !agent) return;
+
+    const nextEffort = nextValue === 'default' ? undefined : nextValue;
+    setSelectedReasoningEffort(nextValue);
+    setUpdatingReasoningEffort(true);
+    setAgent(prev => prev ? {
+      ...prev,
+      config: {
+        ...prev.config,
+        flags: {
+          ...prev.config.flags,
+          reasoningEffort: nextEffort,
+        },
+      },
+    } : prev);
+
+    try {
+      const updated = await api.updateReasoningEffort(id, nextEffort);
+      setAgent(prev => {
+        if (!prev) return updated;
+        if (updated.messages.length >= prev.messages.length) return updated;
+        return {
+          ...prev,
+          config: updated.config,
+          status: updated.status,
+          costUsd: updated.costUsd,
+          tokenUsage: updated.tokenUsage,
+        };
+      });
+    } catch (err) {
+      fetchAgent(true);
+      addLocalMessage(`[Error] ${String(err)}`);
+    } finally {
+      setUpdatingReasoningEffort(false);
+    }
+  };
+
   const filteredCommands = slashCommands.filter((c) =>
     c.cmd.startsWith(slashFilter || '/'),
   );
@@ -742,6 +812,7 @@ export function AgentChat() {
   const instructionFileName = getInstructionFileName(agent.config.provider || 'claude');
   const editInstructionLabel = replaceInstructionFileName(t('chat.editClaudeMd'), instructionFileName);
   const editInstructionTitle = replaceInstructionFileName(t('chat.editClaudeMdTitle'), instructionFileName);
+  const reasoningEffortOptions = getReasoningEffortOptions(agent.config.provider, runtimeCapabilities);
 
   return (
     <div className="chat-container">
@@ -760,9 +831,37 @@ export function AgentChat() {
             {agent.config.directory}
             {agent.costUsd !== undefined && ` | $${agent.costUsd.toFixed(4)}`}
             {agent.tokenUsage && ` | ${agent.tokenUsage.input + agent.tokenUsage.output} ${t('common.tokens')}`}
+            {` | ${t('chat.currentReasoningEffort')}: ${formatReasoningEffort(agent.config.flags.reasoningEffort)}`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {t('chat.currentReasoningEffort')}
+            </span>
+            <select
+              value={selectedReasoningEffort}
+              disabled={updatingReasoningEffort}
+              onChange={(e) => handleReasoningEffortChange(e.target.value as ReasoningEffortSelection)}
+              style={{
+                width: 'auto',
+                minWidth: 110,
+                padding: '8px 10px',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--text)',
+                fontSize: 13,
+              }}
+              title={t(`chat.reasoningEffortHint.${agent.config.provider}`)}
+            >
+              {reasoningEffortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.value === 'default' ? t('chat.defaultReasoningEffort') : option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <span className={`status status-${agent.status}`}>
             <span className="status-dot" />
             {agent.status}
@@ -824,7 +923,7 @@ export function AgentChat() {
         </div>
       </div>
 
-      {id && <TerminalView agentId={id} visible={showTerminal} resumeCommand={buildResumeCommand(agent)} />}
+      {id && <TerminalView agentId={id} visible={showTerminal} resumeCommand={buildResumeCommand(agent, runtimeCapabilities)} />}
       <div className="chat-messages" style={{ display: showTerminal ? 'none' : undefined }}>
         {agent.messages.map((msg) => {
           const isToolMsg = msg.role === 'tool' && (msg.toolInput || msg.toolResult);

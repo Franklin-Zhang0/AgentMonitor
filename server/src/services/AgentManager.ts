@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, statSync } from 'fs';
 import path, { basename } from 'path';
 import os from 'os';
-import type { Agent, AgentConfig, AgentMessage, AgentStatus } from '../models/Agent.js';
+import type { Agent, AgentConfig, AgentMessage, AgentStatus, ReasoningEffort } from '../models/Agent.js';
 import { AgentStore } from '../store/AgentStore.js';
 import { AgentProcess, type StreamMessage } from './AgentProcess.js';
 import { WorktreeManager } from './WorktreeManager.js';
@@ -258,6 +258,7 @@ export class AgentManager extends EventEmitter {
       disallowedTools: agent.config.flags.disallowedTools,
       addDirs: agent.config.flags.addDirs,
       mcpConfig: agent.config.flags.mcpConfig,
+      reasoningEffort: agent.config.flags.reasoningEffort,
     });
 
     agent.pid = proc.pid;
@@ -702,6 +703,21 @@ export class AgentManager extends EventEmitter {
       this.store.saveAgent(agent);
       this.emit('agent:status', agentId, agent.status);
     }
+  }
+
+  updateReasoningEffort(agentId: string, reasoningEffort?: ReasoningEffort): Agent | undefined {
+    const agent = this.store.getAgent(agentId);
+    if (!agent) return undefined;
+
+    if (reasoningEffort) {
+      agent.config.flags.reasoningEffort = reasoningEffort;
+    } else {
+      delete agent.config.flags.reasoningEffort;
+    }
+
+    this.store.saveAgent(agent);
+    this.emit('agent:update', agentId, agent);
+    return agent;
   }
 
   sendMessage(agentId: string, text: string): void {

@@ -77,6 +77,10 @@ export const zh: Record<string, string> = {
     'create.removeSuggestion': '删除建议',
     'create.suggestionPlaceholder': '输入提示建议...',
     'create.cloneFrom': '克隆自',
+    'create.reasoningEffort': '推理强度',
+    'create.reasoningEffortDefault': '默认',
+    'create.reasoningEffortHint.claude': '用于此代理后续启动或恢复的 Claude 会话。',
+    'create.reasoningEffortHint.codex': '用于此代理后续启动的 Codex 轮次。',
 
     // Agent Chat
     'chat.editClaudeMd': '编辑 CLAUDE.md',
@@ -129,6 +133,10 @@ export const zh: Record<string, string> = {
     'chat.noCostData': '暂无费用数据。',
     'chat.exportedMsg': '对话已导出。',
     'chat.currentModel': '当前模型',
+    'chat.currentReasoningEffort': '当前强度',
+    'chat.defaultReasoningEffort': '默认',
+    'chat.reasoningEffortHint.claude': '更改会在 Claude 下次启动或恢复时生效。',
+    'chat.reasoningEffortHint.codex': '更改会在下一次 Codex 轮次生效。',
     'chat.defaultModel': '默认',
     'chat.agentName': '代理',
     'chat.agentStatus': '状态',

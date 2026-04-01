@@ -1,7 +1,8 @@
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { config } from '../config.js';
-import type { AgentProvider } from '../models/Agent.js';
+import type { AgentProvider, ReasoningEffort } from '../models/Agent.js';
+import { runtimeCapabilities } from './RuntimeCapabilities.js';
 
 export interface StreamMessage {
   type: string;
@@ -54,6 +55,7 @@ export interface ProcessStartOpts {
   disallowedTools?: string;
   addDirs?: string;
   mcpConfig?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 /** Shell-escape a string for use with spawn shell: true */
@@ -140,6 +142,7 @@ export class AgentProcess extends EventEmitter {
   }
 
   private buildClaudeCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
+    const reasoningEffort = runtimeCapabilities.normalizeReasoningEffort('claude', opts.reasoningEffort);
     // -p is required for --resume to work in non-interactive mode.
     // --input-format stream-json keeps stdin open so the actual prompt (and any
     // permission approvals / follow-up messages) are sent via stdin after start.
@@ -160,6 +163,10 @@ export class AgentProcess extends EventEmitter {
 
     if (opts.model) {
       args.push('--model', shellEscape(opts.model));
+    }
+
+    if (reasoningEffort) {
+      args.push('--effort', shellEscape(reasoningEffort));
     }
 
     if (opts.chrome) {
@@ -197,12 +204,9 @@ export class AgentProcess extends EventEmitter {
   }
 
   private buildCodexCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
+    const reasoningEffort = runtimeCapabilities.normalizeReasoningEffort('codex', opts.reasoningEffort);
     // Shell-escape values that may contain spaces since we use shell: true
-    const args: string[] = [
-      'exec',
-      '--json',
-      shellEscape(opts.prompt),
-    ];
+    const args: string[] = ['exec', '--json'];
 
     if (opts.dangerouslySkipPermissions) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -214,9 +218,14 @@ export class AgentProcess extends EventEmitter {
       args.push('--model', shellEscape(opts.model));
     }
 
+    if (reasoningEffort) {
+      args.push('-c', shellEscape(`model_reasoning_effort="${reasoningEffort}"`));
+    }
+
     // Codex uses --cd instead of cwd for working directory, but we also set cwd
     args.push('--cd', shellEscape(opts.directory));
     args.push('--skip-git-repo-check');
+    args.push(shellEscape(opts.prompt));
 
     return { bin: config.codexBin, args };
   }
