@@ -16,6 +16,7 @@ export interface ProviderRuntimeCapabilities {
   available: boolean;
   version?: string;
   reasoningEfforts: ReasoningEffort[];
+  models: string[];
   detectedFrom: DetectionSource;
 }
 
@@ -29,7 +30,10 @@ type CommandRunner = (bin: string, args: string[]) => CommandResult;
 const CACHE_TTL_MS = 60_000;
 const DEFAULT_CLAUDE_REASONING_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high'];
 const DEFAULT_CODEX_REASONING_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high'];
+const DEFAULT_CLAUDE_MODELS = ['sonnet', 'opus'];
+const DEFAULT_CODEX_MODELS = ['gpt-5'];
 const CODEX_XHIGH_MIN_VERSION = '0.117.0';
+const CODEX_GPT54_MIN_VERSION = '0.117.0';
 
 function runCommand(bin: string, args: string[]): CommandResult {
   const result = spawnSync(bin, args, {
@@ -78,6 +82,18 @@ function uniqueEfforts(values: string[]): ReasoningEffort[] {
   return efforts;
 }
 
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
 export class RuntimeCapabilitiesService {
   private cache?: RuntimeCapabilities;
   private cacheAt = 0;
@@ -109,6 +125,10 @@ export class RuntimeCapabilitiesService {
     return this.getCapabilities().providers[provider].reasoningEfforts;
   }
 
+  getSupportedModels(provider: AgentProvider): string[] {
+    return this.getCapabilities().providers[provider].models;
+  }
+
   isReasoningEffortSupported(provider: AgentProvider, effort: unknown): effort is ReasoningEffort {
     return typeof effort === 'string' && this.getSupportedReasoningEfforts(provider).includes(effort as ReasoningEffort);
   }
@@ -117,18 +137,25 @@ export class RuntimeCapabilitiesService {
     return this.isReasoningEffortSupported(provider, effort) ? effort : undefined;
   }
 
+  isModelSupported(provider: AgentProvider, model: unknown): model is string {
+    return typeof model === 'string' && this.getSupportedModels(provider).includes(model);
+  }
+
   private detectClaude(): ProviderRuntimeCapabilities {
     const versionResult = this.commandRunner(config.claudeBin, ['--version']);
     const helpResult = this.commandRunner(config.claudeBin, ['--help']);
     const version = parseVersion([versionResult.stdout, versionResult.stderr].join('\n'));
     const helpText = [helpResult.stdout, helpResult.stderr].join('\n');
     const reasoningEfforts = this.parseClaudeEfforts(helpText);
+    const parsedModels = this.parseClaudeModels(helpText);
+    const models = parsedModels.length > 0 ? parsedModels : DEFAULT_CLAUDE_MODELS;
 
     if (reasoningEfforts.length > 0) {
       return {
         available: true,
         version,
         reasoningEfforts,
+        models,
         detectedFrom: 'help',
       };
     }
@@ -139,6 +166,7 @@ export class RuntimeCapabilitiesService {
         available: false,
         version,
         reasoningEfforts: [],
+        models: [],
         detectedFrom: 'unavailable',
       };
     }
@@ -147,6 +175,7 @@ export class RuntimeCapabilitiesService {
       available: true,
       version,
       reasoningEfforts: DEFAULT_CLAUDE_REASONING_EFFORTS,
+      models,
       detectedFrom: 'fallback',
     };
   }
@@ -161,6 +190,7 @@ export class RuntimeCapabilitiesService {
         available: false,
         version,
         reasoningEfforts: [],
+        models: [],
         detectedFrom: 'unavailable',
       };
     }
@@ -168,11 +198,15 @@ export class RuntimeCapabilitiesService {
     const reasoningEfforts: ReasoningEffort[] = version && compareVersions(version, CODEX_XHIGH_MIN_VERSION) >= 0
       ? [...DEFAULT_CODEX_REASONING_EFFORTS, 'xhigh']
       : [...DEFAULT_CODEX_REASONING_EFFORTS];
+    const models = version && compareVersions(version, CODEX_GPT54_MIN_VERSION) >= 0
+      ? [...DEFAULT_CODEX_MODELS, 'gpt-5.4', 'gpt-5.4-mini']
+      : [...DEFAULT_CODEX_MODELS];
 
     return {
       available: true,
       version,
       reasoningEfforts,
+      models,
       detectedFrom: version ? 'version-threshold' : 'fallback',
     };
   }
@@ -185,6 +219,18 @@ export class RuntimeCapabilitiesService {
     if (!effortLine) return [];
 
     return uniqueEfforts(effortLine.match(/\b(low|medium|high|xhigh|max)\b/g) || []);
+  }
+
+  private parseClaudeModels(helpText: string): string[] {
+    const modelLine = helpText
+      .split('\n')
+      .find((line) => line.includes('--model <model>'));
+
+    if (!modelLine) return [];
+
+    const quotedMatches = [...modelLine.matchAll(/'([a-zA-Z0-9.-]+)'/g)];
+    const quotedModels = quotedMatches.map((match) => match[1]);
+    return uniqueStrings(quotedModels);
   }
 }
 

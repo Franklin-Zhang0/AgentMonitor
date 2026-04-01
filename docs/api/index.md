@@ -35,6 +35,7 @@ All responses are JSON. Errors return:
 
 ### Settings
 - `GET /api/settings` - Get server settings (agent retention period)
+- `GET /api/settings/runtime-capabilities` - Get runtime-detected provider capabilities (reasoning efforts + model options)
 - `PUT /api/settings` - Update server settings
 
 ### Other

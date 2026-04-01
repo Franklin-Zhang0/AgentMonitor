@@ -184,6 +184,10 @@ export class AgentManager extends EventEmitter {
   private startProcess(agent: Agent): void {
     const proc = new AgentProcess();
     this.processes.set(agent.id, proc);
+    const processPrompt = this.composeProcessPrompt(agent);
+    const processModel = agent.config.provider === 'codex'
+      ? undefined
+      : agent.config.flags.model;
 
     proc.on('message', (msg: StreamMessage) => {
       this.handleStreamMessage(agent.id, msg, agent.config.provider);
@@ -246,10 +250,10 @@ export class AgentManager extends EventEmitter {
     proc.start({
       provider: agent.config.provider,
       directory: agent.worktreePath || agent.config.directory,
-      prompt: agent.config.prompt,
+      prompt: processPrompt,
       dangerouslySkipPermissions: agent.config.flags.dangerouslySkipPermissions,
       resume: agent.config.flags.resume,
-      model: agent.config.flags.model,
+      model: processModel,
       fullAuto: agent.config.flags.fullAuto,
       chrome: agent.config.flags.chrome,
       permissionMode: agent.config.flags.permissionMode,
@@ -263,6 +267,27 @@ export class AgentManager extends EventEmitter {
 
     agent.pid = proc.pid;
     this.store.saveAgent(agent);
+  }
+
+  private composeProcessPrompt(agent: Agent): string {
+    if (agent.config.provider !== 'codex') {
+      return agent.config.prompt;
+    }
+
+    const selectedModel = agent.config.flags.model?.trim();
+    if (!selectedModel) {
+      return agent.config.prompt;
+    }
+
+    const prompt = agent.config.prompt || '';
+    const trimmedPrompt = prompt.trimStart();
+    if (trimmedPrompt.startsWith('/model ')) {
+      return prompt;
+    }
+
+    // Codex CLI supports slash command model switching in-band.
+    // Prefix /model so the first turn always runs on the selected model.
+    return `/model ${selectedModel}\n${prompt}`;
   }
 
   private handleStreamMessage(agentId: string, msg: StreamMessage, provider: string): void {

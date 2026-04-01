@@ -38,6 +38,7 @@
 - **克隆智能体** —— 一键复制任意智能体的配置（目录、提供者、参数、指令文件内容），立即启动相同设置的新智能体，无需重复填写
 - **指令模板** —— 创建可复用的指令集，在启动智能体时加载（Claude 使用 `CLAUDE.md`，Codex 使用 `AGENTS.md`）
 - **自动检测指令文件** —— 选择项目目录时，自动检测已有指令文件并提供加载选项（含跨 provider 兼容回退）
+- **自动检测模型选项** —— 创建页面会根据本机已安装 CLI 版本展示 provider 对应的可选模型下拉
 - **实时编辑** —— 随时修改智能体指令文件内容，无需重启
 
 ### 多智能体编排
@@ -244,10 +245,15 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 2. 选择 **提供者** —— Claude Code 或 Codex
 3. 设置 **名称**、**工作目录**（使用浏览按钮选择目录）和 **提示词**
 4. 如果所选目录包含指令文件（`CLAUDE.md` 或 `AGENTS.md`），系统会提示您自动加载（按 provider 优先并带兼容回退）
-5. 配置 **参数选项**（如 `--dangerously-skip-permissions`、`--chrome`、`--permission-mode`）
-6. 可选加载指令模板并在线编辑（Claude 为 `CLAUDE.md`，Codex 为 `AGENTS.md`）
-7. 输入 **管理员邮箱**、**WhatsApp 手机号** 和/或 **Slack Webhook URL** 用于通知
-8. 点击 **创建智能体**
+5. 从运行时探测得到的下拉中选择 **模型**（或保留 `default`）
+6. 配置 **参数选项**（如 `--dangerously-skip-permissions`、`--chrome`、`--permission-mode`）
+7. 可选加载指令模板并在线编辑（Claude 为 `CLAUDE.md`，Codex 为 `AGENTS.md`）
+8. 输入 **管理员邮箱**、**WhatsApp 手机号** 和/或 **Slack Webhook URL** 用于通知
+9. 点击 **创建智能体**
+
+当你选择了模型时：
+- Claude：启动时通过 CLI `--model <选择值>` 生效
+- Codex：会在首轮任务前注入 `/model <选择值>` 再执行提示词
 
 **提示 —— 克隆现有智能体：** 点击任意智能体卡片上的 **克隆** 按钮，即可创建一个预填了相同目录、提供者、参数和指令文件内容（`CLAUDE.md` / `AGENTS.md`）的新智能体。配合模板可打造可复用的智能体库：创建一个包含标准指令的模板 → 使用该模板创建一个智能体 → 每次需要新实例时克隆即可。
 
@@ -325,6 +331,7 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | GET | `/api/settings` | 获取服务器设置（智能体保留时间等） |
+| GET | `/api/settings/runtime-capabilities` | 获取运行时探测能力（推理强度 + 模型可选项） |
 | PUT | `/api/settings` | 更新服务器设置 |
 
 ### 其他
@@ -392,7 +399,8 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 | | Claude Code | Codex |
 |---|---|---|
 | **二进制文件** | `claude` | `codex` |
-| **参数选项** | `--dangerously-skip-permissions`、`--permission-mode`、`--chrome`、`--max-budget-usd`、`--allowedTools`、`--disallowedTools`、`--add-dir`、`--mcp-config`、`--resume`、`--model` | `--dangerously-bypass-approvals-and-sandbox`、`--full-auto`、`--model` |
+| **参数选项** | `--dangerously-skip-permissions`、`--permission-mode`、`--chrome`、`--max-budget-usd`、`--allowedTools`、`--disallowedTools`、`--add-dir`、`--mcp-config`、`--resume`、`--model` | `--dangerously-bypass-approvals-and-sandbox`、`--full-auto` |
+| **模型选择** | 运行时探测下拉，启动时用 `--model` 应用 | 运行时探测下拉，首轮任务前用 `/model <name>` 应用 |
 | **追踪** | 费用（USD） | Token 使用量 |
 
 ---

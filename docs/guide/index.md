@@ -34,8 +34,9 @@ The local dev UI is available at `http://localhost:5173`, and the API server run
 2. Enter a name, working directory, and prompt
 3. Use **Browse** to pick a directory — if a `CLAUDE.md` or `AGENTS.md` exists, you'll be prompted to load it
 4. Select provider (Claude Code or Codex)
-5. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
-6. Click **Create Agent**
+5. Select a model from the runtime-detected dropdown (or keep `default`)
+6. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
+7. Click **Create Agent**
 
 If the working directory is a git repo, the agent will start in an isolated worktree branch. Otherwise, it works directly in the target directory.
 
@@ -43,6 +44,10 @@ Agent Monitor keeps instruction content compatible across providers:
 - Claude agents use `CLAUDE.md`
 - Codex agents use `AGENTS.md`
 - If only one exists, Create Agent can still load it and write the provider-specific file when the agent is created
+
+Model behavior is provider-specific:
+- Claude applies the selected model via `--model` at process start
+- Codex applies the selected model by prefixing the first turn with `/model <name>`
 
 ## Using the Dashboard
 

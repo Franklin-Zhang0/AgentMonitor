@@ -73,12 +73,23 @@ When creating an agent, you can configure these flags:
 - **disallowedTools**: Comma/space-separated list of denied tools (e.g., `Bash(rm:*) Write`)
 - **addDirs**: Additional directories to allow tool access to (comma-separated)
 - **mcpConfig**: Path to MCP server config JSON file
-- **model**: Specify model (e.g., `claude-sonnet-4-6`)
+- **model**: Select from runtime-detected model options in Create Agent (applied via `--model`)
 
 ### Codex Flags
 - **dangerouslySkipPermissions**: Auto-approve all operations
 - **fullAuto**: Enable full-auto mode
-- **model**: Specify model (e.g., `o4-mini`)
+- **model**: Select from runtime-detected model options in Create Agent (applied by `/model <name>` at the start of the first turn)
+
+## Runtime Capabilities
+
+Agent Monitor detects provider capabilities from your locally installed CLI binaries and exposes them to the UI:
+- Reasoning effort options
+- Model options
+
+API:
+- `GET /api/settings/runtime-capabilities`
+
+The Create Agent page uses this endpoint to render provider-specific dropdowns instead of requiring manual model input.
 
 ## CLAUDE.md
 

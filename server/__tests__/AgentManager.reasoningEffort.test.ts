@@ -126,4 +126,47 @@ describe('reasoning effort support', () => {
 
     expect(args).not.toContain('--effort');
   });
+
+  it('prefixes Codex prompt with /model switch on process start', () => {
+    const composed = (manager as unknown as {
+      composeProcessPrompt: (agent: Agent) => string;
+    }).composeProcessPrompt({
+      id: 'agent-codex-model',
+      name: 'Codex Model',
+      status: 'running',
+      config: {
+        provider: 'codex',
+        directory: tmpDir,
+        prompt: 'Implement feature X',
+        flags: { model: 'gpt-5.4-mini' },
+      },
+      messages: [],
+      lastActivity: Date.now(),
+      createdAt: Date.now(),
+    });
+
+    expect(composed.startsWith('/model gpt-5.4-mini\n')).toBe(true);
+    expect(composed.endsWith('Implement feature X')).toBe(true);
+  });
+
+  it('does not inject /model prefix for Claude prompts', () => {
+    const composed = (manager as unknown as {
+      composeProcessPrompt: (agent: Agent) => string;
+    }).composeProcessPrompt({
+      id: 'agent-claude-model',
+      name: 'Claude Model',
+      status: 'running',
+      config: {
+        provider: 'claude',
+        directory: tmpDir,
+        prompt: 'Implement feature Y',
+        flags: { model: 'sonnet' },
+      },
+      messages: [],
+      lastActivity: Date.now(),
+      createdAt: Date.now(),
+    });
+
+    expect(composed).toBe('Implement feature Y');
+  });
 });

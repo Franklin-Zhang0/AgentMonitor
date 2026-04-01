@@ -4,6 +4,11 @@ import { api, type AgentProvider, type Template, type SessionInfo, type DirListi
 import { useTranslation } from '../i18n';
 import { getInstructionFileName, replaceInstructionFileName } from '../lib/instructionFiles';
 import {
+  getModelOptions,
+  normalizeModelSelection,
+  type ModelSelection,
+} from '../lib/modelOptions';
+import {
   getReasoningEffortOptions,
   normalizeReasoningEffortSelection,
   type ReasoningEffortSelection,
@@ -33,7 +38,7 @@ export function CreateAgent() {
   const [addDirs, setAddDirs] = useState('');
   const [mcpConfig, setMcpConfig] = useState('');
   const [resumeSession, setResumeSession] = useState('');
-  const [model, setModel] = useState('');
+  const [model, setModel] = useState<ModelSelection>('default');
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffortSelection>('default');
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilities | null>(null);
   const [creating, setCreating] = useState(false);
@@ -87,7 +92,7 @@ export function CreateAgent() {
         setDisallowedTools((f.disallowedTools as string) || '');
         setAddDirs((f.addDirs as string) || '');
         setMcpConfig((f.mcpConfig as string) || '');
-        setModel((f.model as string) || '');
+        setModel(normalizeModelSelection(source.config.provider, f.model, runtimeCapabilities, true));
         setReasoningEffort(normalizeReasoningEffortSelection(source.config.provider, f.reasoningEffort, runtimeCapabilities));
       }).catch(() => {});
     }
@@ -101,6 +106,7 @@ export function CreateAgent() {
 
   useEffect(() => {
     setReasoningEffort((current) => normalizeReasoningEffortSelection(provider, current, runtimeCapabilities));
+    setModel((current) => normalizeModelSelection(provider, current, runtimeCapabilities, true));
   }, [provider, runtimeCapabilities]);
 
   const addSuggestion = async () => {
@@ -116,6 +122,7 @@ export function CreateAgent() {
   const handleProviderChange = (nextProvider: AgentProvider) => {
     setProvider(nextProvider);
     setReasoningEffort((current) => normalizeReasoningEffortSelection(nextProvider, current, runtimeCapabilities));
+    setModel((current) => normalizeModelSelection(nextProvider, current, runtimeCapabilities));
     if (directory) {
       void checkInstructionFile(directory, nextProvider);
     }
@@ -201,7 +208,7 @@ export function CreateAgent() {
           addDirs: addDirs || undefined,
           mcpConfig: mcpConfig || undefined,
           resume: resumeSession || undefined,
-          model: model || undefined,
+          model: model !== 'default' ? model : undefined,
           reasoningEffort: reasoningEffort !== 'default' ? reasoningEffort : undefined,
         },
       });
@@ -215,6 +222,7 @@ export function CreateAgent() {
   const instructionFileName = getInstructionFileName(provider);
   const instructionFieldLabel = replaceInstructionFileName(t('create.claudeMd'), instructionFileName);
   const instructionFieldPlaceholder = replaceInstructionFileName(t('create.claudeMdPlaceholder'), instructionFileName);
+  const modelOptions = getModelOptions(provider, runtimeCapabilities, model !== 'default' ? model : undefined);
   const reasoningEffortOptions = getReasoningEffortOptions(provider, runtimeCapabilities);
 
   return (
@@ -438,11 +446,16 @@ export function CreateAgent() {
 
       <div className="form-group">
         <label>{t('create.model')}</label>
-        <input
+        <select
           value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={provider === 'claude' ? 'e.g. claude-sonnet-4-5-20250514' : 'e.g. o3'}
-        />
+          onChange={(e) => setModel(e.target.value as ModelSelection)}
+        >
+          {modelOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.value === 'default' ? t('chat.defaultModel') : option.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="form-group">

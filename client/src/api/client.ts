@@ -25,6 +25,7 @@ export interface ProviderRuntimeCapabilities {
   available: boolean;
   version?: string;
   reasoningEfforts: ReasoningEffort[];
+  models: string[];
   detectedFrom: 'help' | 'version-threshold' | 'fallback' | 'unavailable';
 }
 

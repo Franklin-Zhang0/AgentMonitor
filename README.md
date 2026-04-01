@@ -39,6 +39,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 - **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, instruction content) to instantly spin up a new one with the same setup — no re-entering settings
 - **Instruction templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
 - **Auto-detect instruction files** — When selecting a project directory, automatically detects existing instruction files with provider-aware fallback
+- **Auto-detect model options** — Create Agent shows provider-specific model choices detected from your locally installed CLI version
 - **Live editing** — Modify an agent's instruction content at any time without restarting
 
 ### Multi-Agent Orchestration
@@ -249,10 +250,15 @@ Leave both unset for local-only mode. See [Remote Access (Relay Mode)](#remote-a
 2. Select **Provider** — Claude Code or Codex
 3. Set **Name**, **Working Directory** (use Browse to pick a directory), and **Prompt**
 4. If the selected directory contains an instruction file (`CLAUDE.md` or `AGENTS.md`), you'll be prompted to load it automatically (provider-aware with compatibility fallback)
-5. Configure **Flags** (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
-6. Optionally load an instruction template and edit it inline (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
-7. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
-8. Click **Create Agent**
+5. Select a **Model** from the runtime-detected dropdown (or leave `default`)
+6. Configure **Flags** (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
+7. Optionally load an instruction template and edit it inline (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
+8. Enter an **Admin Email**, **WhatsApp Phone**, and/or **Slack Webhook URL** for notifications
+9. Click **Create Agent**
+
+When a model is selected:
+- Claude starts with CLI `--model <selected>`
+- Codex prefixes the first turn with `/model <selected>` before executing your task prompt
 
 **Tip — Clone an existing agent:** Hit the **Clone** button on any agent card to create a new agent pre-filled with the same directory, provider, flags, and instruction file content (`CLAUDE.md` / `AGENTS.md`). Combine with templates for a reusable agent library: create a template with your standard instructions → create one agent using it → clone whenever you need a fresh instance.
 
@@ -330,6 +336,7 @@ Create, edit, and reuse instruction templates across agents (`CLAUDE.md` / `AGEN
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/settings` | Get server settings (agent retention, etc.) |
+| GET | `/api/settings/runtime-capabilities` | Get runtime-detected provider capabilities (reasoning efforts + model options) |
 | PUT | `/api/settings` | Update server settings |
 
 ### Other
@@ -449,7 +456,8 @@ Once attached, send free text to forward it directly to the agent. When the agen
 | | Claude Code | Codex |
 |---|---|---|
 | **Binary** | `claude` | `codex` |
-| **Flags** | `--dangerously-skip-permissions`, `--permission-mode`, `--chrome`, `--max-budget-usd`, `--allowedTools`, `--disallowedTools`, `--add-dir`, `--mcp-config`, `--resume`, `--model` | `--dangerously-bypass-approvals-and-sandbox`, `--full-auto`, `--model` |
+| **Flags** | `--dangerously-skip-permissions`, `--permission-mode`, `--chrome`, `--max-budget-usd`, `--allowedTools`, `--disallowedTools`, `--add-dir`, `--mcp-config`, `--resume`, `--model` | `--dangerously-bypass-approvals-and-sandbox`, `--full-auto` |
+| **Model Selection** | Runtime-detected dropdown, applied via `--model` on start | Runtime-detected dropdown, applied via `/model <name>` at the beginning of the first turn |
 | **Tracking** | Cost (USD) | Token usage |
 
 ---
