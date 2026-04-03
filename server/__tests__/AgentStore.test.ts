@@ -9,10 +9,12 @@ import type { Template } from '../src/models/Template.js';
 describe('AgentStore', () => {
   let tmpDir: string;
   let store: AgentStore;
+  let initialTemplateCount = 0;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentstore-test-'));
     store = new AgentStore(tmpDir);
+    initialTemplateCount = store.getAllTemplates().length;
   });
 
   afterEach(() => {
@@ -135,7 +137,7 @@ describe('AgentStore', () => {
       updatedAt: Date.now(),
     });
 
-    expect(store.getAllTemplates()).toHaveLength(2);
+    expect(store.getAllTemplates()).toHaveLength(initialTemplateCount + 2);
   });
 
   it('deletes a template', () => {
@@ -148,5 +150,19 @@ describe('AgentStore', () => {
     });
     expect(store.deleteTemplate('tdel')).toBe(true);
     expect(store.getTemplate('tdel')).toBeUndefined();
+  });
+
+  it('seeds default OpenCLI skill template once', () => {
+    const templates = store.getAllTemplates();
+    const opencliTemplate = templates.find((template) => template.name === 'OpenCLI Skill Starter');
+    expect(opencliTemplate).toBeDefined();
+    expect(opencliTemplate!.content).toContain('opencli list');
+    expect(store.getSettings().opencliTemplateSeeded).toBe(true);
+
+    const store2 = new AgentStore(tmpDir);
+    const seededTemplates = store2
+      .getAllTemplates()
+      .filter((template) => template.name === 'OpenCLI Skill Starter');
+    expect(seededTemplates).toHaveLength(1);
   });
 });

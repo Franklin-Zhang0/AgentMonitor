@@ -4,6 +4,7 @@
 
 - Node.js 18+
 - Claude Code CLI (`claude`) or OpenAI Codex CLI (`codex`)
+- OpenCLI runtime (`@jackwener/opencli`) is auto-synced during `server` install (OpenCLI itself requires Node.js 20+)
 - Git (optional; needed for worktree isolation in git repos)
 
 ## Installation
@@ -14,6 +15,7 @@ npm install
 ```
 
 For local-only use, you do not need relay setup. Install the CLI you want to use, then run the app directly on your machine.
+When you run `cd server && npm install`, Agent Monitor also performs a best-effort sync to `@jackwener/opencli@latest`.
 
 ## Running
 
@@ -37,6 +39,8 @@ The local dev UI is available at `http://localhost:5173`, and the API server run
 5. Select a model from the runtime-detected dropdown (or keep `default`)
 6. Configure flags (e.g., `--dangerously-skip-permissions`, `--chrome`, `--permission-mode`)
 7. Click **Create Agent**
+
+Tip: use the built-in `OpenCLI Skill Starter` template from **Load template...** if the task needs website/browser/desktop automation.
 
 If the working directory is a git repo, the agent will start in an isolated worktree branch. Otherwise, it works directly in the target directory.
 

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { config } from '../config.js';
 import type { Agent } from '../models/Agent.js';
 import type { Template } from '../models/Template.js';
@@ -10,11 +11,13 @@ export interface ServerSettings {
   promptSuggestions: string[]; // user-editable prompt quick-fill options
   pathHistory: Record<string, string[]>; // machine hostname → recently used paths
   deleteSessionFilesPolicy: 'ask' | 'keep' | 'purge';
+  opencliTemplateSeeded?: boolean; // one-time bootstrap marker
 }
 
 const DEFAULT_SETTINGS: ServerSettings = {
   agentRetentionMs: 86_400_000, // 24 hours
   deleteSessionFilesPolicy: 'keep',
+  opencliTemplateSeeded: false,
   promptSuggestions: [
     'kick off',
     'keep working until confirmed all required features implemented without bugs during test',
@@ -24,6 +27,32 @@ const DEFAULT_SETTINGS: ServerSettings = {
   ],
   pathHistory: {},
 };
+
+const DEFAULT_OPENCLI_TEMPLATE_NAME = 'OpenCLI Skill Starter';
+const DEFAULT_OPENCLI_TEMPLATE_CONTENT = `# OpenCLI Skill Starter
+
+Use this instruction block to make the agent actively leverage \`opencli\`.
+
+## When to use OpenCLI
+
+- Website operations (search/extract/publish/download) that are hard to do reliably with plain HTTP.
+- Browser automation steps that need UI interaction.
+- Tasks where a supported external CLI is already exposed through OpenCLI.
+
+## Recommended flow
+
+1. Run \`opencli list\` once to discover available commands in this environment.
+2. For browser-backed commands, run \`opencli doctor\` first and verify bridge/daemon status.
+3. Prefer structured output for machine parsing:
+   - Use \`-f json\` whenever possible.
+4. If a command fails because login/session is missing, report the exact blocker and suggest the next manual step.
+
+## Guardrails
+
+- Do not exfiltrate credentials, cookies, or private account data.
+- Keep commands deterministic and auditable (show exact command used).
+- Prefer read-only operations unless the task explicitly asks for write/publish actions.
+`;
 
 export class AgentStore {
   private agents: Map<string, Agent> = new Map();
@@ -96,6 +125,33 @@ export class AgentStore {
         // ignore corrupt file
       }
     }
+
+    this.ensureDefaultOpencliTemplate();
+  }
+
+  private ensureDefaultOpencliTemplate(): void {
+    if (this.settings.opencliTemplateSeeded) return;
+
+    const existing = [...this.templates.values()].find(
+      (template) => template.name === DEFAULT_OPENCLI_TEMPLATE_NAME
+        || template.content.includes('# OpenCLI Skill Starter'),
+    );
+
+    if (!existing) {
+      const now = Date.now();
+      const template: Template = {
+        id: randomUUID(),
+        name: DEFAULT_OPENCLI_TEMPLATE_NAME,
+        content: DEFAULT_OPENCLI_TEMPLATE_CONTENT,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.templates.set(template.id, template);
+      this.saveTemplates();
+    }
+
+    this.settings.opencliTemplateSeeded = true;
+    fs.writeFileSync(this.settingsFile, JSON.stringify(this.settings, null, 2));
   }
 
   private saveAgents(): void {

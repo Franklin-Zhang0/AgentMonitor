@@ -76,6 +76,8 @@ You can run AgentMonitor on **any machine** — a desktop, a cloud VM, a lab ser
    npm install -g @openai/codex
    ```
 
+   OpenCLI is auto-synced by Agent Monitor during `cd server && npm install` (requires Node.js 20+ for OpenCLI runtime).
+
 3. **Copy your `.env` file** (or set environment variables):
    ```bash
    # Required for relay mode:

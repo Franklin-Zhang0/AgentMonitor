@@ -36,7 +36,7 @@
 
 ### 通过可克隆任务模板，轻松创建智能体
 - **克隆智能体** —— 一键复制任意智能体的配置（目录、提供者、参数、指令文件内容），立即启动相同设置的新智能体，无需重复填写
-- **指令模板** —— 创建可复用的指令集，在启动智能体时加载（Claude 使用 `CLAUDE.md`，Codex 使用 `AGENTS.md`）
+- **指令模板** —— 创建可复用的指令集，在启动智能体时加载（Claude 使用 `CLAUDE.md`，Codex 使用 `AGENTS.md`）；首次运行会自动注入内置模板 `OpenCLI Skill Starter`
 - **自动检测指令文件** —— 选择项目目录时，自动检测已有指令文件并提供加载选项（含跨 provider 兼容回退）
 - **自动检测模型选项** —— 创建页面会根据本机已安装 CLI 版本展示 provider 对应的可选模型下拉
 - **实时编辑** —— 随时修改智能体指令文件内容，无需重启
@@ -58,6 +58,7 @@
 ### 实时监控与交互
 - **实时流式输出** —— 通过 WebSocket 实时查看智能体输出（本地和中继模式均支持），自动轮询兜底
 - **PTY Web 终端** —— 切换全交互式 Shell（node-pty + xterm.js），在智能体工作目录中运行任意命令、启动 `claude`、调试代码 —— 直接在浏览器中操作
+- **内置 OpenCLI 工具链** —— 执行 `server` 依赖安装时会自动同步 `@jackwener/opencli` 到最新版，并通过 PATH 暴露给 agent 子进程
 - **Web 聊天界面** —— 结构化聊天视图，支持 25+ 斜杠命令与 CLI 行为一致；两种界面共存，可自由切换
 - **会话恢复** —— 向已停止的智能体发送消息即可自动使用 `--resume` 重启，继续完整对话历史
 - **克隆智能体** —— 复制现有智能体的配置，快速创建具有相同设置的新智能体
@@ -153,6 +154,7 @@
 - **Node.js** >= 18
 - **Claude Code CLI**（`claude`）—— 用于 Claude 智能体。Agent Monitor 会在运行时根据你本机安装的 CLI 自动探测可用的 `--effort` 取值；较旧版本通常只有 `low`、`medium`、`high`，较新版本可能还支持 `max`
 - **Codex CLI**（`codex`）—— 用于 Codex 智能体
+- **OpenCLI 运行时**（`@jackwener/opencli`）—— 在安装 `server` 依赖时自动安装（OpenCLI 自身要求 Node.js >= 20）
 - **Git** —— 用于 worktree 隔离（可选；非 git 目录无需安装）
 
 ### 安装
@@ -163,6 +165,8 @@ npm install
 cd server && npm install && cd ..
 cd client && npm install && cd ..
 ```
+
+执行 `cd server && npm install` 时会自动尝试同步 `@jackwener/opencli@latest`。
 
 如果只是 **本地使用**，到这里就够了，**不需要配置 relay / 中继**。
 
@@ -259,6 +263,8 @@ npm run dev    # 同时启动服务端（tsx watch）+ 客户端（vite dev）
 - Codex：会在首轮任务前注入 `/model <选择值>` 再执行提示词
 
 **提示 —— 克隆现有智能体：** 点击任意智能体卡片上的 **克隆** 按钮，即可创建一个预填了相同目录、提供者、参数和指令文件内容（`CLAUDE.md` / `AGENTS.md`）的新智能体。配合模板可打造可复用的智能体库：创建一个包含标准指令的模板 → 使用该模板创建一个智能体 → 每次需要新实例时克隆即可。
+
+模板快速上手：可直接使用内置 `OpenCLI Skill Starter` 模板，让 agent 主动发现并使用 `opencli`（如 `opencli list`、`opencli doctor`，优先结构化 JSON 输出）。
 
 ### 仪表盘
 

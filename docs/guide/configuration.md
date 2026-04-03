@@ -20,6 +20,18 @@ PORT=8080 npm start
 
 For most local setups, this is the only section you need.
 
+### OpenCLI Integration
+
+During `server` dependency installation, Agent Monitor runs a best-effort sync to `@jackwener/opencli@latest` so agents can call `opencli` directly during execution.
+
+- OpenCLI runtime requires Node.js 20+.
+- Agent subprocess PATH is extended to include local `node_modules/.bin`, so `opencli` is available without global install.
+- To skip automatic OpenCLI sync in CI/offline environments, set:
+
+```bash
+AGENT_MONITOR_SKIP_OPENCLI=1 npm install
+```
+
 ### Email Notifications (SMTP)
 
 | Variable | Default | Description |

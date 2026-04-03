@@ -37,7 +37,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 
 ### Spin Up Agents Instantly with Cloneable Templates
 - **Clone agent** — Duplicate any agent's configuration (directory, provider, flags, instruction content) to instantly spin up a new one with the same setup — no re-entering settings
-- **Instruction templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks (`CLAUDE.md` for Claude, `AGENTS.md` for Codex)
+- **Instruction templates** — Create reusable instruction sets and load them when spawning agents or pipeline tasks (`CLAUDE.md` for Claude, `AGENTS.md` for Codex), with a built-in `OpenCLI Skill Starter` template auto-seeded on first run
 - **Auto-detect instruction files** — When selecting a project directory, automatically detects existing instruction files with provider-aware fallback
 - **Auto-detect model options** — Create Agent shows provider-specific model choices detected from your locally installed CLI version
 - **Live editing** — Modify an agent's instruction content at any time without restarting
@@ -59,6 +59,7 @@ A web dashboard to run, monitor, and manage **Claude Code** and **Codex** agents
 ### Real-Time Monitoring & Interaction
 - **Live streaming** — Watch agent output in real-time over WebSocket (works locally and through relay), with automatic polling fallback
 - **PTY web terminal** — Toggle a fully interactive shell (node-pty + xterm.js) in the agent's working directory — run any command, launch `claude`, or debug directly from the browser
+- **Built-in OpenCLI toolchain** — `server` install automatically syncs `@jackwener/opencli` to latest and exposes `opencli` to agent subprocesses via PATH
 - **Web chat interface** — Structured chat view with 25+ slash commands matching CLI behavior; both interfaces coexist and you can switch freely
 - **Session resume** — Send a message to a stopped agent to automatically restart it with `--resume`, continuing the conversation with full history
 - **Clone agent** — Duplicate an existing agent's configuration to quickly create a new one with the same settings
@@ -158,6 +159,7 @@ Phone / Laptop ──HTTP──▶ Public Server (Relay :3457) ◀──WS tunne
 - **Node.js** >= 18
 - **Claude Code CLI** (`claude`) — for Claude agents. Agent Monitor detects supported `--effort` values from your installed CLI at runtime; older Claude Code releases may expose only `low`, `medium`, and `high`, while newer releases may also expose `max`
 - **Codex CLI** (`codex`) — for Codex agents
+- **OpenCLI runtime** (`@jackwener/opencli`) — installed automatically during `server` dependency install (Node.js >= 20 required by OpenCLI itself)
 - **Git** — for worktree isolation (optional; non-git directories work without it)
 
 ### Installation
@@ -168,6 +170,8 @@ npm install
 cd server && npm install && cd ..
 cd client && npm install && cd ..
 ```
+
+`cd server && npm install` now includes an automatic best-effort sync of `@jackwener/opencli@latest`.
 
 For **local-only use**, that's enough. You do **not** need to configure relay mode.
 
@@ -264,6 +268,8 @@ When a model is selected:
 - Codex prefixes the first turn with `/model <selected>` before executing your task prompt
 
 **Tip — Clone an existing agent:** Hit the **Clone** button on any agent card to create a new agent pre-filled with the same directory, provider, flags, and instruction file content (`CLAUDE.md` / `AGENTS.md`). Combine with templates for a reusable agent library: create a template with your standard instructions → create one agent using it → clone whenever you need a fresh instance.
+
+Template quick start: use the built-in `OpenCLI Skill Starter` template to make agents proactively discover and use `opencli` (`opencli list`, `opencli doctor`, and JSON-first outputs).
 
 ### Dashboard
 

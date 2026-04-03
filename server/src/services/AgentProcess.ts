@@ -1,5 +1,7 @@
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import type { AgentProvider, ReasoningEffort } from '../models/Agent.js';
 import { runtimeCapabilities } from './RuntimeCapabilities.js';
@@ -63,6 +65,21 @@ function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const serverRoot = path.resolve(__dirname, '..', '..');
+const projectRoot = path.resolve(serverRoot, '..');
+const localToolBins = [
+  path.join(serverRoot, 'node_modules', '.bin'),
+  path.join(projectRoot, 'node_modules', '.bin'),
+];
+
+function injectLocalToolBins(basePath?: string): string {
+  const existing = (basePath || '').split(path.delimiter).filter(Boolean);
+  const merged = [...localToolBins, ...existing];
+  const deduped = [...new Set(merged)];
+  return deduped.join(path.delimiter);
+}
+
 export class AgentProcess extends EventEmitter {
   private process: ChildProcess | null = null;
   private buffer = '';
@@ -90,6 +107,8 @@ export class AgentProcess extends EventEmitter {
     const cleanEnv = { ...process.env };
     delete cleanEnv.CLAUDECODE;
     delete cleanEnv.CLAUDE_CODE_ENTRYPOINT;
+    const pathKey = Object.keys(cleanEnv).find((key) => key.toLowerCase() === 'path') || 'PATH';
+    cleanEnv[pathKey] = injectLocalToolBins(cleanEnv[pathKey]);
 
     this.process = spawn(bin, args, {
       cwd: opts.directory,
