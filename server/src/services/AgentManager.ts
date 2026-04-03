@@ -203,6 +203,10 @@ export class AgentManager extends EventEmitter {
 
     proc.on('stderr', (text: string) => {
       console.error(`[Agent ${agent.id}] stderr: ${text}`);
+      // Codex prints this informational line when stdin is piped; harmless noise.
+      if (agent.config.provider === 'codex' && text.trim() === 'Reading additional input from stdin...') {
+        return;
+      }
       // Store stderr in messages for debugging
       const a = this.store.getAgent(agent.id);
       if (a) {

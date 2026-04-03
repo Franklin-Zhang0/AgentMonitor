@@ -130,6 +130,11 @@ export class AgentProcess extends EventEmitter {
     if (opts.provider !== 'codex' && this.process.stdin?.writable) {
       const msg = JSON.stringify({ type: 'user', message: { role: 'user', content: opts.prompt } });
       this.process.stdin.write(msg + '\n');
+    } else if (opts.provider === 'codex' && this.process.stdin?.writable) {
+      // Codex treats piped stdin as additional prompt input and waits for EOF.
+      // We pass prompt via argv, so close stdin immediately to avoid hanging
+      // on "Reading additional input from stdin...".
+      this.process.stdin.end();
     }
 
     this.process.stdout?.on('data', (data: Buffer) => {
