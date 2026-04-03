@@ -230,7 +230,7 @@ export class AgentProcess extends EventEmitter {
     if (opts.dangerouslySkipPermissions) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
     } else if (opts.fullAuto) {
-      args.push('--full-auto');
+      args.push('--full-auto', '--ask-for-approval', 'never', '--sandbox', 'danger-full-access');
     }
 
     if (opts.model) {

@@ -495,7 +495,7 @@ export function CreateAgent() {
                 checked={fullAuto}
                 onChange={(e) => setFullAuto(e.target.checked)}
               />
-              --full-auto
+              --full-auto --ask-for-approval never --sandbox danger-full-access
             </label>
           )}
           {provider === 'claude' && (
