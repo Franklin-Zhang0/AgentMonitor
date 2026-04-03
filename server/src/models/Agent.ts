@@ -35,6 +35,8 @@ export interface AgentConfig {
     resume?: string;
     model?: string;
     fullAuto?: boolean;
+    askForApprovalNever?: boolean;
+    sandboxDangerFullAccess?: boolean;
     chrome?: boolean;
     permissionMode?: string;
     maxBudgetUsd?: number;

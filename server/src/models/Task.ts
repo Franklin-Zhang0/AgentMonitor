@@ -13,6 +13,8 @@ export interface PipelineTask {
   flags?: {
     dangerouslySkipPermissions?: boolean;
     fullAuto?: boolean;
+    askForApprovalNever?: boolean;
+    sandboxDangerFullAccess?: boolean;
   };
   status: TaskStatus;
   agentId?: string;

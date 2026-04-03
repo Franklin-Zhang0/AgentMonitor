@@ -30,6 +30,8 @@ export function CreateAgent() {
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [skipPermissions, setSkipPermissions] = useState(false);
   const [fullAuto, setFullAuto] = useState(false);
+  const [askForApprovalNever, setAskForApprovalNever] = useState(false);
+  const [sandboxDangerFullAccess, setSandboxDangerFullAccess] = useState(false);
   const [chrome, setChrome] = useState(false);
   const [permissionMode, setPermissionMode] = useState('');
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('');
@@ -85,6 +87,8 @@ export function CreateAgent() {
         const f = source.config.flags || {};
         setSkipPermissions(!!f.dangerouslySkipPermissions);
         setFullAuto(!!f.fullAuto);
+        setAskForApprovalNever(!!f.askForApprovalNever);
+        setSandboxDangerFullAccess(!!f.sandboxDangerFullAccess);
         setChrome(!!f.chrome);
         setPermissionMode((f.permissionMode as string) || '');
         setMaxBudgetUsd(f.maxBudgetUsd ? String(f.maxBudgetUsd) : '');
@@ -200,6 +204,8 @@ export function CreateAgent() {
         flags: {
           dangerouslySkipPermissions: skipPermissions || undefined,
           fullAuto: fullAuto || undefined,
+          askForApprovalNever: askForApprovalNever || undefined,
+          sandboxDangerFullAccess: sandboxDangerFullAccess || undefined,
           chrome: chrome || undefined,
           permissionMode: permissionMode || undefined,
           maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
@@ -495,7 +501,27 @@ export function CreateAgent() {
                 checked={fullAuto}
                 onChange={(e) => setFullAuto(e.target.checked)}
               />
-              --full-auto --ask-for-approval never --sandbox danger-full-access
+              --full-auto
+            </label>
+          )}
+          {provider === 'codex' && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={askForApprovalNever}
+                onChange={(e) => setAskForApprovalNever(e.target.checked)}
+              />
+              --ask-for-approval never
+            </label>
+          )}
+          {provider === 'codex' && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={sandboxDangerFullAccess}
+                onChange={(e) => setSandboxDangerFullAccess(e.target.checked)}
+              />
+              --sandbox danger-full-access
             </label>
           )}
           {provider === 'claude' && (

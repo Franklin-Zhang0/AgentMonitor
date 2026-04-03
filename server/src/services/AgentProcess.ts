@@ -50,6 +50,8 @@ export interface ProcessStartOpts {
   resume?: string;
   model?: string;
   fullAuto?: boolean;
+  askForApprovalNever?: boolean;
+  sandboxDangerFullAccess?: boolean;
   chrome?: boolean;
   permissionMode?: string;
   maxBudgetUsd?: number;
@@ -230,7 +232,14 @@ export class AgentProcess extends EventEmitter {
     if (opts.dangerouslySkipPermissions) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
     } else if (opts.fullAuto) {
-      args.push('--full-auto', '--ask-for-approval', 'never', '--sandbox', 'danger-full-access');
+      args.push('--full-auto');
+    }
+
+    if (opts.askForApprovalNever) {
+      args.push('--ask-for-approval', 'never');
+    }
+    if (opts.sandboxDangerFullAccess) {
+      args.push('--sandbox', 'danger-full-access');
     }
 
     if (opts.model) {

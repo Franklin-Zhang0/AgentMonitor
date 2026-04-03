@@ -259,6 +259,8 @@ export class AgentManager extends EventEmitter {
       resume: agent.config.flags.resume,
       model: processModel,
       fullAuto: agent.config.flags.fullAuto,
+      askForApprovalNever: agent.config.flags.askForApprovalNever,
+      sandboxDangerFullAccess: agent.config.flags.sandboxDangerFullAccess,
       chrome: agent.config.flags.chrome,
       permissionMode: agent.config.flags.permissionMode,
       maxBudgetUsd: agent.config.flags.maxBudgetUsd,
