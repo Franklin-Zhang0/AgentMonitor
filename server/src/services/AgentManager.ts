@@ -534,13 +534,23 @@ export class AgentManager extends EventEmitter {
         this.store.saveAgent(agent);
       } else if (msg.item.type === 'command_execution' || msg.item.type === 'tool_call' || msg.item.type === 'function_call') {
         const item = msg.item as { type?: string; command?: string; aggregated_output?: string; exit_code?: number; text?: string };
-        const content = item.command
-          ? `Command: ${item.command}${item.aggregated_output ? `\nOutput: ${item.aggregated_output}` : ''}${item.exit_code !== undefined ? ` (exit: ${item.exit_code})` : ''}`
+        const toolSummary = item.command
+          ? `Command: ${item.command}`
           : `Tool: ${item.text || JSON.stringify(msg.item)}`;
+        const toolResultParts: string[] = [];
+        if (item.aggregated_output) {
+          toolResultParts.push(item.aggregated_output);
+        }
+        if (item.exit_code !== undefined) {
+          toolResultParts.push(`[exit code] ${item.exit_code}`);
+        }
         agent.messages.push({
           id: uuid(),
           role: 'tool',
-          content,
+          content: toolSummary,
+          toolName: item.command ? 'command' : (item.type || 'tool'),
+          toolInput: item.command || item.text || undefined,
+          toolResult: toolResultParts.length > 0 ? toolResultParts.join('\n') : undefined,
           timestamp: Date.now(),
         });
         agent.lastActivity = Date.now();

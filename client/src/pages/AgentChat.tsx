@@ -15,6 +15,65 @@ import {
   type ReasoningEffortSelection,
 } from '../lib/reasoningEffort';
 
+type ChatMessage = Agent['messages'][number];
+type ToolMessageDetails = {
+  title: string;
+  input?: string;
+  output?: string;
+  details?: string;
+};
+
+function normalizeToolField(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export function getToolMessageDetails(msg: ChatMessage): ToolMessageDetails | null {
+  if (msg.role !== 'tool') return null;
+
+  const toolInput = normalizeToolField(msg.toolInput);
+  const toolResult = normalizeToolField(msg.toolResult);
+  const content = normalizeToolField(msg.content);
+  const lines = content?.split('\n') || [];
+  const firstLine = lines[0];
+  const remaining = lines.slice(1).join('\n').trim();
+  const genericToolNames = new Set(['tool', 'command', 'command_execution', 'tool_call', 'function_call']);
+  const normalizedToolName = normalizeToolField(msg.toolName);
+
+  let title = (normalizedToolName && !genericToolNames.has(normalizedToolName))
+    ? normalizedToolName
+    : (firstLine || normalizedToolName || 'Tool');
+  let details: string | undefined;
+
+  if (toolInput || toolResult) {
+    if (content) {
+      const normalizedTitle = title.trim();
+      const normalizedContent = content.trim();
+      if (normalizedContent !== normalizedTitle && normalizedContent !== `Using tool: ${normalizedTitle}`) {
+        details = normalizedContent;
+      }
+    }
+  } else if (content) {
+    if (firstLine?.startsWith('Command:')) {
+      title = firstLine;
+      details = remaining || content;
+    } else if (firstLine?.startsWith('Tool:') || firstLine?.startsWith('Using tool:')) {
+      title = firstLine;
+      details = remaining || content;
+    } else {
+      title = firstLine || title;
+      details = remaining || content;
+    }
+  }
+
+  return {
+    title,
+    input: toolInput,
+    output: toolResult,
+    details,
+  };
+}
+
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
@@ -982,7 +1041,8 @@ export function AgentChat() {
       {id && <TerminalView agentId={id} visible={showTerminal} resumeCommand={buildResumeCommand(agent, runtimeCapabilities)} />}
       <div className="chat-messages" style={{ display: showTerminal ? 'none' : undefined }}>
         {agent.messages.map((msg) => {
-          const isToolMsg = msg.role === 'tool' && (msg.toolInput || msg.toolResult);
+          const toolDetails = getToolMessageDetails(msg);
+          const isToolMsg = !!toolDetails;
           const isExpanded = expandedTools.has(msg.id);
           return (
             <div key={msg.id} className={`chat-message ${msg.role}`}>
@@ -998,20 +1058,26 @@ export function AgentChat() {
                     })}
                   >
                     <span className="tool-toggle">{isExpanded ? '\u25BC' : '\u25B6'}</span>
-                    <span className="tool-name">{msg.toolName || msg.content}</span>
+                    <span className="tool-name">{toolDetails.title}</span>
                   </div>
                   {isExpanded && (
                     <div className="tool-details">
-                      {msg.toolInput && (
+                      {toolDetails.input && (
                         <div className="tool-section">
                           <div className="tool-section-label">Input</div>
-                          <pre className="tool-content">{msg.toolInput}</pre>
+                          <pre className="tool-content">{toolDetails.input}</pre>
                         </div>
                       )}
-                      {msg.toolResult && (
+                      {toolDetails.output && (
                         <div className="tool-section">
                           <div className="tool-section-label">Output</div>
-                          <pre className="tool-content">{msg.toolResult}</pre>
+                          <pre className="tool-content">{toolDetails.output}</pre>
+                        </div>
+                      )}
+                      {toolDetails.details && (
+                        <div className="tool-section">
+                          <div className="tool-section-label">Details</div>
+                          <pre className="tool-content">{toolDetails.details}</pre>
                         </div>
                       )}
                     </div>
