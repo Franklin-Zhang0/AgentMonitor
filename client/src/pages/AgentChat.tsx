@@ -23,19 +23,71 @@ function toggleTheme() {
 }
 
 /**
- * Build a `claude --resume <sessionId>` command with the agent's flags
- * so the PTY terminal auto-launches an interactive Claude session.
+ * Build a provider-specific interactive resume command with the agent's flags
+ * so the PTY terminal can reopen the same session in a shell.
  */
 function buildResumeCommand(agent: Agent | null, runtimeCapabilities?: RuntimeCapabilities | null): string | undefined {
   if (!agent) return undefined;
   const provider = agent.config.provider || 'claude';
-  // Only Claude supports --resume, and only when agent is running/paused (not stopped)
-  if (provider !== 'claude') return undefined;
   if (!agent.sessionId) return undefined;
   if (agent.status === 'stopped' || agent.status === 'error') return undefined;
 
   // Convert camelCase flag keys to kebab-case for CLI
   const toKebab = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+
+  if (provider === 'codex') {
+    const parts = ['codex', 'resume', '--include-non-interactive', agent.sessionId];
+    const flags = agent.config.flags || {};
+
+    for (const [key, value] of Object.entries(flags)) {
+      if (key === 'resume') continue;
+      if (key === 'dangerouslySkipPermissions' && value === true) {
+        parts.push('--dangerously-bypass-approvals-and-sandbox');
+        continue;
+      }
+      if (key === 'fullAuto' && value === true) {
+        parts.push('--full-auto');
+        continue;
+      }
+      if (key === 'askForApprovalNever' && value === true) {
+        parts.push('--ask-for-approval', 'never');
+        continue;
+      }
+      if (key === 'sandboxDangerFullAccess' && value === true) {
+        parts.push('--sandbox', 'danger-full-access');
+        continue;
+      }
+      if (key === 'reasoningEffort') {
+        if (isReasoningEffortSupported(provider, value, runtimeCapabilities)) {
+          parts.push('-c', `model_reasoning_effort="${String(value)}"`);
+        }
+        continue;
+      }
+      if (key === 'addDirs' && typeof value === 'string') {
+        for (const dir of value.split(/[,\s]+/).filter(Boolean)) {
+          parts.push('--add-dir', dir);
+        }
+        continue;
+      }
+      if (key === 'model' && value) {
+        parts.push('--model', String(value));
+        continue;
+      }
+
+      const flag = toKebab(key);
+      if (value === true) {
+        parts.push(`--${flag}`);
+      } else if (value !== false && value !== undefined && value !== null && value !== '') {
+        parts.push(`--${flag}`, String(value));
+      }
+    }
+
+    const cwd = agent.worktreePath || agent.config.directory;
+    if (cwd) {
+      parts.push('--cd', cwd);
+    }
+    return parts.join(' ');
+  }
 
   const parts = ['claude', '--resume', agent.sessionId];
   const flags = agent.config.flags || {};

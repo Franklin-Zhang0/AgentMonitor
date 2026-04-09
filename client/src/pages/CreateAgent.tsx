@@ -62,7 +62,6 @@ export function CreateAgent() {
 
   useEffect(() => {
     api.getTemplates().then(setTemplates).catch(() => {});
-    api.getSessions().then(setSessions).catch(() => {});
     api.getSettings().then((s) => {
       setPromptSuggestions(s.promptSuggestions || []);
       setPathHistory(s.pathHistory || {});
@@ -112,6 +111,29 @@ export function CreateAgent() {
     setReasoningEffort((current) => normalizeReasoningEffortSelection(provider, current, runtimeCapabilities));
     setModel((current) => normalizeModelSelection(provider, current, runtimeCapabilities, true));
   }, [provider, runtimeCapabilities]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api.getSessions(provider).then((nextSessions) => {
+      if (cancelled) return;
+      setSessions(nextSessions);
+      setResumeSession((current) => (
+        current && nextSessions.some((session) => session.id === current)
+          ? current
+          : ''
+      ));
+    }).catch(() => {
+      if (!cancelled) {
+        setSessions([]);
+        setResumeSession('');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider]);
 
   const addSuggestion = async () => {
     const text = newSuggestion.trim();
@@ -599,19 +621,17 @@ export function CreateAgent() {
         </>
       )}
 
-      {provider === 'claude' && (
-        <div className="form-group">
-          <label>{t('create.resumeSession')}</label>
-          <select value={resumeSession} onChange={(e) => setResumeSession(e.target.value)}>
-            <option value="">{t('create.newSession')}</option>
-            {sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.projectPath} - {new Date(s.lastModified).toLocaleString()}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="form-group">
+        <label>{t('create.resumeSession')}</label>
+        <select value={resumeSession} onChange={(e) => setResumeSession(e.target.value)}>
+          <option value="">{t('create.newSession')}</option>
+          {sessions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.projectPath} - {new Date(s.lastModified).toLocaleString()}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="form-group">
         <label>

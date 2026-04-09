@@ -232,7 +232,10 @@ export class AgentProcess extends EventEmitter {
   private buildCodexCommand(opts: ProcessStartOpts): { bin: string; args: string[] } {
     const reasoningEffort = runtimeCapabilities.normalizeReasoningEffort('codex', opts.reasoningEffort);
     // Shell-escape values that may contain spaces since we use shell: true
-    const args: string[] = ['exec', '--json'];
+    const isResume = !!opts.resume;
+    const args: string[] = isResume
+      ? ['exec', 'resume', '--json']
+      : ['exec', '--json'];
 
     if (opts.dangerouslySkipPermissions) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -255,9 +258,15 @@ export class AgentProcess extends EventEmitter {
       args.push('-c', shellEscape(`model_reasoning_effort="${reasoningEffort}"`));
     }
 
-    // Codex uses --cd instead of cwd for working directory, but we also set cwd
-    args.push('--cd', shellEscape(opts.directory));
+    if (!isResume) {
+      // Codex uses --cd instead of cwd for fresh exec runs, but we also set cwd.
+      args.push('--cd', shellEscape(opts.directory));
+    }
     args.push('--skip-git-repo-check');
+
+    if (opts.resume) {
+      args.push(shellEscape(opts.resume));
+    }
     args.push(shellEscape(opts.prompt));
 
     return { bin: config.codexBin, args };

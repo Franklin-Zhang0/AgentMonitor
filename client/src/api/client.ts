@@ -235,7 +235,8 @@ export const api = {
     request(`/templates/${id}`, { method: 'DELETE' }),
 
   // Sessions
-  getSessions: () => request<SessionInfo[]>('/sessions'),
+  getSessions: (provider?: AgentProvider) =>
+    request<SessionInfo[]>(`/sessions${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`),
 
   // Directories
   listDirectory: (path?: string) =>

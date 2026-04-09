@@ -78,6 +78,30 @@ describe('reasoning effort support', () => {
     expect(args).toContain('\'model_reasoning_effort="high"\'');
   });
 
+  it('uses codex exec resume when a Codex session id is provided', () => {
+    const proc = new AgentProcess();
+    const buildCodexCommand = (proc as unknown as {
+      buildCodexCommand: (opts: {
+        provider: 'codex';
+        directory: string;
+        prompt: string;
+        resume?: string;
+      }) => { bin: string; args: string[] };
+    }).buildCodexCommand.bind(proc);
+
+    const sessionId = '019d5000-aaaa-7bbb-8ccc-1234567890ab';
+    const { args } = buildCodexCommand({
+      provider: 'codex',
+      directory: tmpDir,
+      prompt: 'continue the task',
+      resume: sessionId,
+    });
+
+    expect(args.slice(0, 3)).toEqual(['exec', 'resume', '--json']);
+    expect(args).toContain(`'${sessionId}'`);
+    expect(args).not.toContain('--cd');
+  });
+
   it('passes supported reasoning effort to Claude via --effort', () => {
     vi.spyOn(runtimeCapabilities, 'normalizeReasoningEffort').mockImplementation((provider, effort) => (
       provider === 'claude' ? effort as 'high' : undefined

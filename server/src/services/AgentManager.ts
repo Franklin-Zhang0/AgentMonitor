@@ -105,10 +105,14 @@ export class AgentManager extends EventEmitter {
       console.log(`[AgentManager] Created missing directory: ${agentConfig.directory}`);
     }
 
-    // When resuming a previous Claude session, detect the original working directory
-    // from the session file so we run in the correct directory (avoids "No conversation found").
+    // When resuming a previous session, detect the original working directory
+    // from the session file so we run in the correct directory.
     if (agentConfig.flags.resume) {
-      const sessionCwd = this.findSessionCwd(agentConfig.flags.resume, agentConfig.directory);
+      const sessionCwd = this.findSessionCwd(
+        agentConfig.provider,
+        agentConfig.flags.resume,
+        agentConfig.directory,
+      );
       if (sessionCwd && existsSync(sessionCwd)) {
         console.log(`[AgentManager] Resume: using session cwd: ${sessionCwd}`);
         agentConfig.directory = sessionCwd;
@@ -564,17 +568,11 @@ export class AgentManager extends EventEmitter {
     }
   }
 
-  /**
-   * Given a Claude session ID, find the original working directory by reading
-   * the session JSONL file. Claude stores sessions under:
-   *   ~/.claude/projects/<encoded-path>/<sessionId>.jsonl
-   * The first message with a `cwd` field contains the original working directory.
-   *
-   * If the session was run inside an existing agent worktree (under projectDir),
-   * that worktree path is returned so the agent can reuse it.
-   * Otherwise, the literal cwd from the session file is returned.
-   */
-  private findSessionCwd(sessionId: string, _projectDir: string): string | undefined {
+  private findSessionCwd(provider: Agent['config']['provider'], sessionId: string, _projectDir: string): string | undefined {
+    if (provider === 'codex') {
+      return this.findCodexSessionCwd(sessionId);
+    }
+
     try {
       const claudeProjectsDir = path.join(os.homedir(), '.claude', 'projects');
       if (!existsSync(claudeProjectsDir)) return undefined;
@@ -602,6 +600,29 @@ export class AgentManager extends EventEmitter {
       }
     } catch (err) {
       console.warn('[AgentManager] findSessionCwd error:', err);
+    }
+    return undefined;
+  }
+
+  private findCodexSessionCwd(sessionId: string): string | undefined {
+    try {
+      const sessionPath = this.findCodexSessionPath(sessionId);
+      if (!sessionPath || !existsSync(sessionPath)) return undefined;
+
+      const content = readFileSync(sessionPath, 'utf-8');
+      const firstLine = content.split('\n').find((line) => line.trim());
+      if (!firstLine) return undefined;
+
+      const entry = JSON.parse(firstLine) as {
+        type?: string;
+        payload?: { cwd?: string };
+      };
+
+      if (entry.type === 'session_meta' && typeof entry.payload?.cwd === 'string') {
+        return entry.payload.cwd;
+      }
+    } catch (err) {
+      console.warn('[AgentManager] findCodexSessionCwd error:', err);
     }
     return undefined;
   }
@@ -817,8 +838,8 @@ export class AgentManager extends EventEmitter {
     agent.config.prompt = newPrompt;
     agent.currentTask = newPrompt.length > 120 ? newPrompt.slice(0, 120) + '...' : newPrompt;
 
-    // If we have a session ID, use --resume to continue the conversation
-    if (agent.sessionId && agent.config.provider === 'claude') {
+    // If we have a session ID, use the provider's resume flow to continue the conversation.
+    if (agent.sessionId) {
       agent.config.flags.resume = agent.sessionId;
     }
 
